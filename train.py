@@ -129,7 +129,7 @@ def run(args):
 
 def main(_):
     def shutdown(signal, frame):
-        logger.warn('Received signal %s: exiting', signal)
+        logger.warning('Received signal %s: exiting', signal)
         sys.exit(128+signal)
     signal.signal(signal.SIGHUP, shutdown)
     signal.signal(signal.SIGINT, shutdown)
