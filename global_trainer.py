@@ -103,8 +103,8 @@ class GlobalTrainer(object):
         U.save_state(fname)
 
         # record video
-        if self._config.training_video_record is True:
-            self.reocrd(it)
+        if self._config.training_video_record:
+            self.record(it)
 
     def record(self, ckpt_num=None):
         config = self._config
@@ -122,20 +122,19 @@ class GlobalTrainer(object):
             logger.log('Trial #{}: lengths {}, returns {}'.format(_, ep_traj["ep_length"][0], ep_traj["ep_reward"][0]))
 
             # Video recording
-            if config.record:
-                visual_obs = ep_traj["visual_ob"]
-                video_name = (config.video_prefix or '') + '{}{}.mp4'.format(
-                    '' if ckpt_num is None else 'ckpt_{}_'.format(ckpt_num), _)
-                video_path = osp.join(record_dir, video_name)
-                fps = 60.
+            visual_obs = ep_traj["visual_ob"]
+            video_name = (config.video_prefix or '') + '{}{}.mp4'.format(
+                '' if ckpt_num is None else 'ckpt_{}_'.format(ckpt_num), _)
+            video_path = osp.join(record_dir, video_name)
+            fps = 60.
 
-                def f(t):
-                    frame_length = len(visual_obs)
-                    new_fps = 1./(1./fps + 1./frame_length)
-                    idx = min(int(t*new_fps), frame_length-1)
-                    return visual_obs[idx]
-                video = mpy.VideoClip(f, duration=len(visual_obs)/fps+2)
-                video.write_videofile(video_path, fps, verbose=False)
+            def f(t):
+                frame_length = len(visual_obs)
+                new_fps = 1./(1./fps + 1./frame_length)
+                idx = min(int(t*new_fps), frame_length-1)
+                return visual_obs[idx]
+            video = mpy.VideoClip(f, duration=len(visual_obs)/fps+2)
+            video.write_videofile(video_path, fps, verbose=False)
 
         logger.log('Episode Length: {}'.format(sum(ep_lens) / 10.))
         logger.log('Episode Rewards: {}'.format(sum(ep_rets) / 10.))

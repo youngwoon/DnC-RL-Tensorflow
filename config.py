@@ -60,7 +60,7 @@ def argparser():
 
     # log, record, ckpt
     parser.add_argument('--ckpt_save_step', type=int, default=100)
-    parser.add_argument('--training_video_record', type=str2bool, default=False)
+    parser.add_argument('--training_video_record', type=str2bool, default=True)
     parser.add_argument('--record_script_cmd_path', type=str, default=None)
 
     # misc

@@ -81,12 +81,6 @@ def run(args):
     summary_writer = tf.summary.FileWriter(log_dir)
     logger.info("Events directory: %s", log_dir)
 
-    video_dir = os.path.join(log_dir, 'video')
-    if not os.path.exists(video_dir):
-        os.makedirs(video_dir)
-    video_filename = video_dir + "/%s_%010d_%d.mp4"
-    logger.info("Video saved at %s", video_dir)
-
     # start training
     coord = tf.train.Coordinator()
     if args.load_model_path:
@@ -128,9 +122,6 @@ def run(args):
         global_trainer.update(step, ob, ac)
 
         pbar.set_description('')
-
-        global_trainer.record()
-        #imageio.mimsave(video_filename % (args.env_id, global_step, reward), frames, fps=30)
 
     for env in envs:
         env.close()
