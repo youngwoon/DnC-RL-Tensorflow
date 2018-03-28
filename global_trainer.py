@@ -43,7 +43,7 @@ class GlobalTrainer(object):
         self._build()
 
         if self._is_chef and self._config.is_train:
-            #self.ep_stats = stats(self.summary_name)
+            self.ep_stats = stats(self.summary_name)
             self.writer = U.file_writer(config.log_dir)
 
     def _build(self):
@@ -92,8 +92,11 @@ class GlobalTrainer(object):
 
             info['global/loss'].append(np.mean(loss))
             info['global/grad_norm'].append(np.linalg.norm(g))
-            info['global/global_norm'].append(np.mean(self._global_norm()))
-        #self.ep_stats.add_all_summary_dict(self.writer, info, step)
+
+        for key, value in info.items():
+            info[key] = np.mean(value)
+        info['global/global_norm'] = self._global_norm()
+        self.ep_stats.add_all_summary_dict(self.writer, info, step)
 
     def summary(self, it):
         if not self._is_chef or it % self._config.ckpt_save_step > 0:

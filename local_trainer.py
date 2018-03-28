@@ -55,7 +55,7 @@ class LocalTrainer(object):
 
         if self._is_chef and self._config.is_train:
             self.summary_name = ['{}/{}'.format(self._name, key) for key in self.summary_name]
-            #self.ep_stats = stats(self.summary_name)
+            self.ep_stats = stats(self.summary_name)
             self.writer = U.file_writer(config.log_dir)
 
     def init_network(self):
@@ -170,8 +170,8 @@ class LocalTrainer(object):
             for key, value in self.rollout.items():
                 if key.startswith('ep_'):
                     info[key.split('ep_')[1]] = np.mean(value)
-            info = {'{}/{}'.format(self._name, key):value for key, value in info.items()}
-            #self.ep_stats.add_all_summary_dict(self.writer, info, global_step)
+            info = {'{}/{}'.format(self._name, key):np.mean(value) for key, value in info.items()}
+            self.ep_stats.add_all_summary_dict(self.writer, info, global_step)
             global_step = sess.run(self.update_global_step)
 
     def evaluate(self, rollout, ckpt_num=None):
