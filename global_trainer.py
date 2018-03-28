@@ -79,8 +79,9 @@ class GlobalTrainer(object):
 
         pi = self._policy
         ob_dict = self._env.get_ob_dict(ob)
-        for ob_name in pi.ob_type:
-            pi.ob_rms[ob_name].update(ob_dict[ob_name])
+        if self._config.obs_norm:
+            for ob_name in pi.ob_type:
+                pi.ob_rms[ob_name].update(ob_dict[ob_name])
 
         for (mb_ob, mb_ac) in dataset.iterbatches(
             (ob, ac), include_final_partial_batch=False, batch_size=64, shuffle=True):

@@ -217,8 +217,9 @@ class LocalTrainer(object):
             info = defaultdict(list)
 
         ob_dict = self._env.get_ob_dict(ob)
-        for ob_name in pi.ob_type:
-            pi.ob_rms[ob_name].update(ob_dict[ob_name])
+        if self._config.obs_norm:
+            for ob_name in pi.ob_type:
+                pi.ob_rms[ob_name].update(ob_dict[ob_name])
 
         ob_list = pi.get_ob_list(ob_dict)
         args = ob_list + [ac, atarg]

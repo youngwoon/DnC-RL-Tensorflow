@@ -24,13 +24,6 @@ def argparser():
     parser.add_argument('--method', type=str, default='dnc',
                         choices=['trpo', 'dnc'], help="training method")
 
-    # vanilla rl
-    parser.add_argument('--num_hid_layers', type=int, default=2)
-    parser.add_argument('--hid_size', type=int, default=32)
-    parser.add_argument('--activation', type=str, default='relu',
-                        choices=['relu', 'elu', 'tanh'])
-    parser.add_argument('--fixed_var', type=str2bool, default=True)
-
     # training
     parser.add_argument('--is_train', type=str2bool, default=True)
     parser.add_argument('--threading', type=str2bool, default=False)
@@ -44,6 +37,13 @@ def argparser():
     parser.add_argument('--num_trans_batches', type=int, default=256)
 
     # local network (trpo)
+    parser.add_argument('--num_hid_layers', type=int, default=2)
+    parser.add_argument('--hid_size', type=int, default=32)
+    parser.add_argument('--activation', type=str, default='relu',
+                        choices=['relu', 'elu', 'tanh'])
+    parser.add_argument('--fixed_var', type=str2bool, default=True)
+    parser.add_argument('--obs_norm', type=str2bool, default=False)
+
     parser.add_argument('--max_kl', type=float, default=0.01)
     parser.add_argument('--cg_iters', type=int, default=10)
     parser.add_argument('--cg_damping', type=float, default=0.1)

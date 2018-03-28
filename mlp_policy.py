@@ -13,6 +13,7 @@ class MlpPolicy(object):
     def __init__(self, name, env, config):
         # args
         self.name = name
+        self._config = config
 
         # training
         self._hid_size = config.hid_size
@@ -48,12 +49,16 @@ class MlpPolicy(object):
                 shape=[None] + self._ob_shape[ob_name])
 
         # obs normalization
-        self.ob_rms = {}
-        for ob_name in self.ob_type:
-            with tf.variable_scope("ob_rms_{}".format(ob_name)):
-                self.ob_rms[ob_name] = RunningMeanStd(shape=self._ob_shape[ob_name])
-        obz = [(self._obs[ob_name] - self.ob_rms[ob_name].mean) / self.ob_rms[ob_name].std
-               for ob_name in self.ob_type]
+        if self._config.obs_norm:
+            self.ob_rms = {}
+            for ob_name in self.ob_type:
+                with tf.variable_scope("ob_rms_{}".format(ob_name)):
+                    self.ob_rms[ob_name] = RunningMeanStd(shape=self._ob_shape[ob_name])
+            obz = [(self._obs[ob_name] - self.ob_rms[ob_name].mean) / self.ob_rms[ob_name].std
+                for ob_name in self.ob_type]
+        else:
+            obz = [self._obs[ob_name] for ob_name in self.ob_type]
+
         obz = [tf.clip_by_value(ob, -5.0, 5.0) for ob in obz]
         obz = tf.concat(obz, -1)
 
