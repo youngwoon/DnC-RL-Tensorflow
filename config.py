@@ -30,36 +30,34 @@ def argparser():
     parser.add_argument('--load_model_path', type=str, default=None)
     parser.add_argument('--T', type=int, default=1000,
                         help="Number of training loop")
-    parser.add_argument('--R', type=int, default=100,
+    parser.add_argument('--R', type=int, default=50,
                         help="Distillation period")
-    parser.add_argument('--num_rollouts', type=int, default=1000)
-    parser.add_argument('--num_batches', type=int, default=32)
-    parser.add_argument('--num_trans_batches', type=int, default=256)
+    parser.add_argument('--num_rollouts', type=int, default=10000)
+    parser.add_argument('--batch_size', type=int, default=128)
 
     # local network (trpo)
     parser.add_argument('--num_hid_layers', type=int, default=2)
-    parser.add_argument('--hid_size', type=int, default=32)
+    parser.add_argument('--hid_size', type=int, nargs='*', default=[64, 64])
     parser.add_argument('--activation', type=str, default='relu',
                         choices=['relu', 'elu', 'tanh'])
     parser.add_argument('--fixed_var', type=str2bool, default=True)
-    parser.add_argument('--obs_norm', type=str2bool, default=False)
+    parser.add_argument('--obs_norm', type=str2bool, default=True)
 
     parser.add_argument('--max_kl', type=float, default=0.01)
     parser.add_argument('--cg_iters', type=int, default=10)
     parser.add_argument('--cg_damping', type=float, default=0.1)
     parser.add_argument('--vf_stepsize', type=float, default=1e-3)
     parser.add_argument('--vf_iters', type=int, default=5)
-    parser.add_argument('--entcoeff', type=float, default=1e-2)
-    parser.add_argument('--optim_epochs', type=int, default=10)
-    parser.add_argument('--optim_stepsize', type=float, default=3e-4)
-    parser.add_argument('--optim_batchsize', type=int, default=64)
+    parser.add_argument('--ent_coeff', type=float, default=0)
+
+    parser.add_argument('--divergence_coeff', type=float, default=1e-2)
 
     # global network
     parser.add_argument('--global_stepsize', type=float, default=1e-3)
     parser.add_argument('--global_max_grad_norm', type=float, default=10.0)
 
     # log, record, ckpt
-    parser.add_argument('--ckpt_save_step', type=int, default=100)
+    parser.add_argument('--ckpt_save_step', type=int, default=1)
     parser.add_argument('--training_video_record', type=str2bool, default=True)
     parser.add_argument('--record_script_cmd_path', type=str, default=None)
 
