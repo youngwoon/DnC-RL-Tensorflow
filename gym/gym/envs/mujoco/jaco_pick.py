@@ -10,7 +10,7 @@ class JacoPickEnv(JacoEnv):
         super().__init__(with_rot=with_rot)
         self._config.update({
             "pick_reward": 100,
-            "random_box": 0.1,
+            "random_box": 1,
         })
         self._context = -1
 
@@ -78,7 +78,6 @@ class JacoPickEnv(JacoEnv):
 
         # set box's initial position
         sx, sy, ex, ey = -0.15, -0.15, 0.15, 0.15
-        sy = 0
         if self._context == 0:
             sx, sy = 0, 0
         elif self._context == 1:
