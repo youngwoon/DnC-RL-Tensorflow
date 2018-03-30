@@ -46,7 +46,6 @@ class LocalTrainer(object):
             *[tf.assign(v1, v2) for v1, v2 in zip(global_policy.var_list, policy.var_list)]))
 
         # tensorboard summary
-        self._time_str = time.strftime("%y-%m-%d_%H-%M-%S")
         self._is_chef = (MPI.COMM_WORLD.Get_rank() == 0)
         self._num_workers = MPI.COMM_WORLD.Get_size()
         if self._is_chef:

@@ -1,6 +1,5 @@
 import os.path as osp
 import os
-import time
 from collections import defaultdict
 
 import numpy as np
@@ -34,7 +33,6 @@ class GlobalTrainer(object):
         self._update_global_step = tf.assign(self.global_step, self.global_step + 1)
 
         # tensorboard summary
-        self._time_str = time.strftime("%y-%m-%d_%H-%M-%S")
         self._is_chef = (MPI.COMM_WORLD.Get_rank() == 0)
         self.summary_name = []
 
