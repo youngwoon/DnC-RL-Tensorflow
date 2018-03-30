@@ -70,8 +70,9 @@ def argparser():
     parser.add_argument('--seed', type=int, default=0,
                         help="RNG seed")
     parser.add_argument('--debug', type=str2bool, default=False)
+    parser.add_argument('--display', type=str, default="0")
 
     args = parser.parse_args()
     if args.training_video_record:
-        os.environ["DISPLAY"] = ":0"
+        os.environ["DISPLAY"] = ":" + args.display
     return args
