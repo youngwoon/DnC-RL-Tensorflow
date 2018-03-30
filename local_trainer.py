@@ -16,23 +16,22 @@ from baselines.common import colorize
 import baselines.common.tf_util as U
 from baselines.common.mpi_adam import MpiAdam
 from baselines.common.cg import cg
-from baselines.statistics import stats
+
 import dataset
 
 
 class LocalTrainer(object):
-    def __init__(self, name, env, runner, policy, old_policy, global_policy, config):
-        self._name = name
+    def __init__(self, id, env, runner, policy, old_policy, pis, global_policy, config):
+        self._id = id
+        self._name = 'local_%d' % id
         self._env = env.unwrapped
         self._runner = runner
         self._config = config
         self._policy = policy
         self._old_policy = old_policy
+        self._pis = pis
 
-        self._entcoeff = config.entcoeff
-        self._optim_epochs = config.optim_epochs
-        self._optim_stepsize = config.optim_stepsize
-        self._optim_batchsize = config.optim_batchsize
+        self._ent_coeff = config.ent_coeff
 
         # global step
         self.global_step = tf.Variable(0, name='global_step', dtype=tf.int64, trainable=False)
@@ -40,7 +39,7 @@ class LocalTrainer(object):
 
         # set to the global network
         self._init_network = U.function([], tf.group(
-            *[v1.assign(v2) for v1, v2 in zip(global_policy.var_list, policy.var_list)]))
+            *[tf.assign(v2, v1) for v1, v2 in zip(global_policy.var_list, policy.var_list)]))
 
         # tensorboard summary
         self._time_str = time.strftime("%y-%m-%d_%H-%M-%S")
@@ -79,45 +78,63 @@ class LocalTrainer(object):
     def _build_trpo(self):
         pi = self._policy
         oldpi = self._old_policy
+        other_pis = self._pis
 
         # input placeholders
-        obs = pi.obs
+        ob = pi.ob
         ac = pi.pdtype.sample_placeholder([None], name='action')
         atarg = tf.placeholder(dtype=tf.float32, shape=[None], name='advantage')  # Target advantage function (if applicable)
         ret = tf.placeholder(dtype=tf.float32, shape=[None], name='return')  # Empirical return
 
         # policy
         all_var_list = pi.get_trainable_variables()
-        self.pol_var_list = [v for v in all_var_list if v.name.split("/")[1].startswith("pol")]
-        self.vf_var_list = [v for v in all_var_list if v.name.split("/")[1].startswith("vf")]
-        self._vf_adam = MpiAdam(self.vf_var_list)
+        pol_var_list = [v for v in all_var_list if v.name.split("/")[1].startswith("pol")]
+        vf_var_list = [v for v in all_var_list if v.name.split("/")[1].startswith("vf")]
+        self._vf_adam = MpiAdam(vf_var_list)
 
         kl_oldnew = oldpi.pd.kl(pi.pd)
         ent = pi.pd.entropy()
         mean_kl = tf.reduce_mean(kl_oldnew)
         mean_ent = tf.reduce_mean(ent)
-        pol_entpen = -self._config.entcoeff * mean_ent
+        pol_entpen = -self._config.ent_coeff * mean_ent
 
         vf_loss = tf.reduce_mean(tf.square(pi.vpred - ret))
 
         ratio = tf.exp(pi.pd.logp(ac) - oldpi.pd.logp(ac))
         pol_surr = tf.reduce_mean(ratio * atarg)
-        pol_loss = pol_surr + pol_entpen
 
+        # divergence
+        other_obs = [] # put id-th data
+        for other_pi in other_pis:
+            other_obs.extend(other_pi.obs[self._id])
+        my_obs_for_other = flatten_lists(pi.obs) # put i-th data
+        other_obs_for_other = [] # put i-th data
+        for i, other_pi in enumerate(other_pis):
+            other_obs_for_other.extend(other_pi.obs[i])
+
+        pairwise_divergence = tf.constant(0.)
+        for i, other_pi in enumerate(other_pis):
+            if i != self._id:
+                pairwise_divergence += tf.reduce_mean(pi.pds[self._id].kl(other_pi.pds[self._id]))
+                pairwise_divergence += tf.reduce_mean(other_pi.pds[i].kl(pi.pds[i]))
+        pol_divergence = self._config.divergence_coeff * pairwise_divergence
+
+        pol_loss = pol_surr + pol_entpen + pol_divergence
         pol_losses = {'pol_loss': pol_loss,
                       'pol_surr': pol_surr,
                       'pol_entpen': pol_entpen,
+                      'pol_divergence': pol_divergence,
                       'kl': mean_kl,
                       'entropy': mean_ent}
         if self._is_chef:
             self.summary_name += ['vf_loss']
             self.summary_name += pol_losses.keys()
 
-        self._get_flat = U.GetFlat(self.pol_var_list)
-        self._set_from_flat = U.SetFromFlat(self.pol_var_list)
-        klgrads = tf.gradients(mean_kl, self.pol_var_list)
+        self._get_flat = U.GetFlat(pol_var_list)
+        self._set_from_flat = U.SetFromFlat(pol_var_list)
+        klgrads = tf.gradients(mean_kl, pol_var_list)
         flat_tangent = tf.placeholder(dtype=tf.float32, shape=[None], name="flat_tan")
-        shapes = [var.get_shape().as_list() for var in self.pol_var_list]
+        shapes = [var.get_shape().as_list() for var in pol_var_list]
         start = 0
         tangents = []
         for shape in shapes:
@@ -125,17 +142,18 @@ class LocalTrainer(object):
             tangents.append(tf.reshape(flat_tangent[start:start+sz], shape))
             start += sz
         gvp = tf.add_n([tf.reduce_sum(g*tangent) for (g, tangent) in zipsame(klgrads, tangents)]) #pylint: disable=E1111
-        fvp = U.flatgrad(gvp, self.pol_var_list)
+        fvp = U.flatgrad(gvp, pol_var_list)
 
         self._update_oldpi = U.function([],[], updates=[
             tf.assign(oldv, newv) for (oldv, newv) in zipsame(oldpi.get_variables(), pi.get_variables())])
-        self._compute_losses = U.function(obs + [ac, atarg], pol_losses)
+        obs_pairwise = other_obs + my_obs_for_other + other_obs_for_other + ob
+        self._compute_losses = U.function(obs_pairwise + [ac, atarg], pol_losses)
         pol_losses = dict(pol_losses)
-        pol_losses.update({'g': U.flatgrad(pol_loss, self.pol_var_list)})
-        self._compute_lossandgrad = U.function(obs + [ac, atarg], pol_losses)
-        self._compute_fvp = U.function([flat_tangent] + obs + [ac, atarg], fvp)
-        self._compute_vflossandgrad = U.function(obs + [ret], U.flatgrad(vf_loss, self.vf_var_list))
-        self._compute_vfloss = U.function(obs + [ret], vf_loss)
+        pol_losses.update({'g': U.flatgrad(pol_loss, pol_var_list)})
+        self._compute_lossandgrad = U.function(obs_pairwise + [ac, atarg], pol_losses)
+        self._compute_fvp = U.function([flat_tangent] + obs_pairwise + [ac, atarg], fvp)
+        self._compute_vflossandgrad = U.function(ob + [ret], U.flatgrad(vf_loss, vf_var_list))
+        self._compute_vfloss = U.function(ob + [ret], vf_loss)
 
         # initialize and sync
         U.initialize()
@@ -146,24 +164,19 @@ class LocalTrainer(object):
         print("Init param sum", th_init.sum())
 
     def generate_rollout(self):
-        sess = U.get_session()
-
-        # rollout
         with self.timed("sampling"):
             rollout = self._runner.rollout(stochastic=True)
             self._runner.add_advantage(rollout, 0.99, 0.98)
         self.rollout = rollout
 
-    def update(self, sess):
+    def update(self, sess, rollouts):
         config = self._config
 
         with sess.as_default(), sess.graph.as_default():
             global_step = sess.run(self.global_step)
-            # rollout
-            self.generate_rollout()
 
             # train policy
-            info = self._update_policy(self.rollout, global_step)
+            info = self._update_policy(rollouts, global_step)
 
             for key, value in self.rollout.items():
                 if key.startswith('ep_'):
@@ -175,12 +188,13 @@ class LocalTrainer(object):
             global_step = sess.run(self.update_global_step)
             return info
 
-    def evaluate(self, rollout, ckpt_num=None):
+    def evaluate(self, ckpt_num=None, record=False):
         config = self._config
 
         ep_lens = []
         ep_rets = []
-        if config.record:
+
+        if record:
             record_dir = osp.join(config.log_dir, 'video')
             os.makedirs(record_dir, exist_ok=True)
 
@@ -188,12 +202,13 @@ class LocalTrainer(object):
             ep_traj = self._runner.rollout(True, True)
             ep_lens.append(ep_traj["ep_length"][0])
             ep_rets.append(ep_traj["ep_reward"][0])
-            logger.log('Trial #{}: lengths {}, returns {}'.format(_, ep_traj["ep_length"][0], ep_traj["ep_reward"][0]))
+            logger.log('[{}] Trial #{}: lengths {}, returns {}'.format(
+                self._name, _, ep_traj["ep_length"][0], ep_traj["ep_reward"][0]))
 
             # Video recording
-            if config.record:
-                visual_obs = ep_traj["visual_obs"]
-                video_name = (config.video_prefix or '') + '{}{}.mp4'.format(
+            if record:
+                visual_obs = ep_traj["visual_ob"]
+                video_name = '{}{}_{}{}.mp4'.format(config.video_prefix or '', self._name,
                     '' if ckpt_num is None else 'ckpt_{}_'.format(ckpt_num), _)
                 video_path = osp.join(record_dir, video_name)
                 fps = 60.
@@ -206,11 +221,12 @@ class LocalTrainer(object):
                 video = mpy.VideoClip(f, duration=len(visual_obs)/fps+2)
                 video.write_videofile(video_path, fps, verbose=False)
 
-        logger.log('Episode Length: {}'.format(sum(ep_lens) / 10.))
-        logger.log('Episode Rewards: {}'.format(sum(ep_rets) / 10.))
+        logger.log('[{}] Episode Length: {}'.format(self._name, sum(ep_lens) / 10.))
+        logger.log('[{}] Episode Rewards: {}'.format(self._name, sum(ep_rets) / 10.))
 
-    def _update_policy(self, seg, it):
+    def _update_policy(self, rollouts, it):
         pi = self._policy
+        seg = rollouts[self._id]
         ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
         atarg = (atarg - atarg.mean()) / atarg.std()
 
@@ -222,8 +238,13 @@ class LocalTrainer(object):
             for ob_name in pi.ob_type:
                 pi.ob_rms[ob_name].update(ob_dict[ob_name])
 
+        other_ob_list = []
+        for i, other_pi in enumerate(self._pis):
+            other_ob_list.extend(other_pi.get_ob_list(rollouts[i]["ob"]))
+
         ob_list = pi.get_ob_list(ob_dict)
-        args = ob_list + [ac, atarg]
+        args = ob_list * self._config.num_workers + \
+            other_ob_list * 2 + ob_list + [ac, atarg]
         fvpargs = [arr[::5] for arr in args]
         def fisher_vector_product(p):
             return self._all_mean(self._compute_fvp(p, *fvpargs)) + self._config.cg_damping * p

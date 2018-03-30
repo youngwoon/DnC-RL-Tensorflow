@@ -40,7 +40,7 @@ def run(args):
     # setting envs and networks
     with tf.device("/cpu:0"):
         global_env = gym.make(args.env)
-        global_network = MlpPolicy('global', global_env, args)
+        global_network = MlpPolicy(0, 'global', global_env, args)
         global_runner = Runner(global_env, global_network, config=args)
         global_trainer = GlobalTrainer('global', global_env, global_runner, global_network, args)
 
@@ -51,20 +51,31 @@ def run(args):
         for i in range(args.num_workers):
             env = gym.make(args.env)
             env.unwrapped.set_context(i)
-            network = MlpPolicy('local_%d' % i, env, args)
-            old_network = MlpPolicy('old_local_%d' % i, env, args)
-            runner = Runner(env, network, config=args)
-            trainer = LocalTrainer('local_%d' % i, env, runner,
-                                   network, old_network, global_network, args)
+            network = MlpPolicy(i, 'local_%d' % i, env, args)
+            old_network = MlpPolicy(i, 'old_local_%d' % i, env, args)
 
             envs.append(env)
             networks.append(network)
             old_networks.append(old_network)
+
+        for i in range(args.num_workers):
+            runner = Runner(env, network, config=args)
+            trainer = LocalTrainer(i, envs[i], runner,
+                                   networks[i], old_networks[i], networks,
+                                   global_network, args)
             trainers.append(trainer)
 
     # summaries
     init_all_op = tf.global_variables_initializer()
     saver = FastSaver(tf.global_variables())
+
+    var_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
+                                 tf.get_variable_scope().name)
+    logger.info('All vars:')
+    for v in var_list:
+        logger.info('  {} ({}, {})'.format(
+                v.name, v.dtype.name, 'x'.join([str(size) for size in v.get_shape()])
+        ))
 
     var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                                  tf.get_variable_scope().name)
@@ -88,18 +99,26 @@ def run(args):
     ep_stats = stats(summary_name)
 
     # start training
-    coord = tf.train.Coordinator()
     if args.load_model_path:
         logger.info('Load models from checkpoint...')
-        pass # TODO: load checkpoint from args.load_model_path
+        def load_model(load_model_path, var_list=None):
+            if os.path.isdir(load_model_path):
+                ckpt_path = tf.train.latest_checkpoint(load_model_path)
+            else:
+                ckpt_path = load_model_path
+            U.load_state(ckpt_path, var_list)
+            return ckpt_path
+        load_model(args.load_model_path)
     else:
         sess.run(tf.global_variables_initializer())
 
-    worker_threads = []
-    for trainer in trainers:
-        worker = lambda: trainer.update(sess)
-        t = threading.Thread(target=(worker))
-        worker_threads.append(t)
+    if args.threading:
+        coord = tf.train.Coordinator()
+        worker_threads = []
+        for trainer in trainers:
+            worker = lambda: trainer.update(sess)
+            t = threading.Thread(target=(worker))
+            worker_threads.append(t)
 
     global_step = sess.run(trainer.global_step)
     logger.info("Starting training at step=%d", global_step)
@@ -109,7 +128,7 @@ def run(args):
         for trainer in trainers:
             trainer.init_network()
 
-        rollouts = []
+        global_rollouts = []
         for _ in range(args.R):
             if args.threading:
                 for t in worker_threads:
@@ -117,13 +136,26 @@ def run(args):
                 coord.join(worker_threads)
             else:
                 for trainer in trainers:
-                    trainer.update(sess)
+                    trainer.generate_rollout()
 
+            rollouts = []
             for trainer in trainers:
                 rollouts.append(trainer.rollout)
+            global_rollouts.extend(rollouts)
+            info = {}
+            for trainer in trainers:
+                _info = trainer.update(sess, rollouts)
+                info.update(_info)
 
-        ob = np.concatenate([rollout['ob'] for rollout in rollouts])
-        ac = np.concatenate([rollout['ac'] for rollout in rollouts])
+            global_step = sess.run(trainer.global_step)
+            ep_stats.add_all_summary_dict(summary_writer, info, global_step)
+
+        if args.training_video_record:
+            for trainer in trainers:
+                trainer.evaluate(global_step, record=True)
+
+        ob = np.concatenate([rollout['ob'] for rollout in global_rollouts])
+        ac = np.concatenate([rollout['ac'] for rollout in global_rollouts])
 
         info = global_trainer.update(step, ob, ac)
         ep_stats.add_all_summary_dict(summary_writer, info, global_step)
