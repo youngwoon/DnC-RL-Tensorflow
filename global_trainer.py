@@ -95,22 +95,21 @@ class GlobalTrainer(object):
         return info
 
     def summary(self, it):
-        if not self._is_chef or it % self._config.ckpt_save_step > 0:
-            return
+        info = self.evaluate(it, record=self._config.training_video_record)
 
         # save checkpoint
-        fname = osp.join(self._config.log_dir, '%.5d' % it)
-        U.save_state(fname)
+        if self._is_chef and it % self._config.ckpt_save_step == 0:
+            fname = osp.join(self._config.log_dir, '%.5d' % it)
+            U.save_state(fname)
 
-        # record video
-        if self._config.training_video_record:
-            self.evaluate(it, record=True)
+        return info
 
     def evaluate(self, ckpt_num=None, record=False):
         config = self._config
 
         ep_lens = []
         ep_rets = []
+        ep_success = []
 
         if record:
             record_dir = osp.join(config.log_dir, 'video')
@@ -120,6 +119,7 @@ class GlobalTrainer(object):
             ep_traj = self._runner.rollout(True, True)
             ep_lens.append(ep_traj["ep_length"][0])
             ep_rets.append(ep_traj["ep_reward"][0])
+            ep_success.append(ep_traj["ep_success"][0])
             logger.log('[{}] Trial #{}: lengths {}, returns {}'.format(
                 self._name, _, ep_traj["ep_length"][0], ep_traj["ep_reward"][0]))
 
@@ -141,3 +141,4 @@ class GlobalTrainer(object):
 
         logger.log('[{}] Episode Length: {}'.format(self._name, sum(ep_lens) / 10.))
         logger.log('[{}] Episode Rewards: {}'.format(self._name, sum(ep_rets) / 10.))
+        return {'length': sum(ep_lens) / 10., 'reward': sum(ep_rets) / 10., 'success': sum(ep_success) / 10.}

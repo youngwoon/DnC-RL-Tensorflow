@@ -5,6 +5,9 @@ import os
 import logging
 import signal
 import threading
+import pipes
+import time
+from six.moves import shlex_quote
 
 import tqdm
 import tensorflow as tf
@@ -25,12 +28,46 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-# Disables write_meta_graph argument, which freezes entire process and is mostly useless.
-class FastSaver(tf.train.Saver):
-    def save(self, sess, save_path, global_step=None, latest_filename=None,
-             meta_graph_suffix="meta", write_meta_graph=True):
-        super(FastSaver, self).save(sess, save_path, global_step, latest_filename,
-                                    meta_graph_suffix, False)
+def write_info(args):
+    # save command
+    train_cmd = 'python ' + ' '.join([sys.argv[0]] + [pipes.quote(s) for s in sys.argv[1:]])
+    logger.info('\n{}\nTraining command:\n{}\n{}\n'.format('*'*80, train_cmd, '*'*80))
+    with open(os.path.join(args.log_dir, "cmd.txt"), "a+") as f:
+        f.write(train_cmd)
+
+    # save argument list
+    logger.info('Save argument list to {}/args.txt'.format(args.log_dir))
+    args_lines = ["Date and Time:", time.strftime("%d/%m/%Y"), time.strftime("%H:%M:%S\n")]
+    args_lines += ["{}: {}".format(k, v) for k, v in args.__dict__.items()]
+    args_lines = '\n'.join(args_lines)
+    with open(os.path.join(args.log_dir, "args.txt"), "w") as f:
+        f.write(args_lines)
+
+    # save code revision
+    logger.info('Save git commit and diff to {}/git.txt'.format(args.log_dir))
+    cmds = ["echo `git rev-parse HEAD` >> {}".format(
+                shlex_quote(os.path.join(args.log_dir, 'git.txt'))),
+            "git diff >> {}".format(
+                shlex_quote(os.path.join(args.log_dir, 'git.txt')))]
+    os.system("\n".join(cmds))
+
+
+def print_variables():
+    def print_format(var_list):
+        for v in var_list:
+            logger.info('  {} ({}, {})'.format(
+                    v.name, v.dtype.name, 'x'.join([str(size) for size in v.get_shape()])
+            ))
+
+    logger.info('All vars:')
+    var_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
+                                 tf.get_variable_scope().name)
+    print_format(var_list)
+
+    logger.info('Trainable vars:')
+    var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
+                                 tf.get_variable_scope().name)
+    print_format(var_list)
 
 
 def run(args):
@@ -38,10 +75,7 @@ def run(args):
     sess.__enter__()
 
     if args.method == 'trpo':
-        args.R = args.T * args.R
-        args.T = 1
         args.num_workers = 1
-        args.ckpt_save_step = 100
 
     # setting envs and networks
     with tf.device("/cpu:0"):
@@ -73,32 +107,13 @@ def run(args):
             trainers.append(trainer)
 
     # summaries
-    init_all_op = tf.global_variables_initializer()
-    saver = FastSaver(tf.global_variables())
+    print_variables()
 
-    var_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
-                                 tf.get_variable_scope().name)
-    logger.info('All vars:')
-    for v in var_list:
-        logger.info('  {} ({}, {})'.format(
-                v.name, v.dtype.name, 'x'.join([str(size) for size in v.get_shape()])
-        ))
-
-    var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
-                                 tf.get_variable_scope().name)
-    logger.info('Trainable vars:')
-    for v in var_list:
-        logger.info('  {} ({}, {})'.format(
-                v.name, v.dtype.name, 'x'.join([str(size) for size in v.get_shape()])
-        ))
-
-    def init_fn(sess):
-        logger.info("Initializing all parameters.")
-        sess.run(init_all_op)
-
-    log_dir = os.path.join(args.log_dir, args.env)
-    summary_writer = tf.summary.FileWriter(log_dir)
-    logger.info("Events directory: %s", log_dir)
+    exp_name = '{}_{}'.format(args.env, args.method)
+    args.log_dir = os.path.join(args.log_dir, exp_name)
+    summary_writer = tf.summary.FileWriter(args.log_dir)
+    logger.info("Events directory: %s", args.log_dir)
+    write_info(args)
 
     summary_name = global_trainer.summary_name.copy()
     for trainer in trainers:
@@ -120,6 +135,7 @@ def run(args):
         sess.run(tf.global_variables_initializer())
 
     if args.threading:
+        raise NotImplementedError('Multi-threading is not implemented.')
         coord = tf.train.Coordinator()
         worker_threads = []
         for trainer in trainers:
@@ -127,7 +143,7 @@ def run(args):
             t = threading.Thread(target=(worker))
             worker_threads.append(t)
 
-    global_step = sess.run(trainer.global_step)
+    global_step = sess.run(trainers[0].global_step)
     logger.info("Starting training at step=%d", global_step)
 
     pbar = tqdm.trange(global_step, args.T, total=args.T, initial=global_step)
@@ -137,6 +153,7 @@ def run(args):
 
         global_rollouts = []
         for _ in range(args.R):
+            # get rollouts
             if args.threading:
                 for t in worker_threads:
                     t.start()
@@ -149,6 +166,8 @@ def run(args):
             for trainer in trainers:
                 rollouts.append(trainer.rollout)
             global_rollouts.extend(rollouts)
+
+            # update local policies
             info = {}
             for trainer in trainers:
                 _info = trainer.update(sess, rollouts)
@@ -157,20 +176,28 @@ def run(args):
             global_step = sess.run(trainer.global_step)
             ep_stats.add_all_summary_dict(summary_writer, info, global_step)
 
-        if args.training_video_record:
-            for trainer in trainers:
-                trainer.evaluate(global_step, record=True)
-
-        ob = np.concatenate([rollout['ob'] for rollout in global_rollouts])
-        ac = np.concatenate([rollout['ac'] for rollout in global_rollouts])
-
+        # update global policy
+        global_info = {}
         if args.method == 'dnc':
+            ob = np.concatenate([rollout['ob'] for rollout in global_rollouts])
+            ac = np.concatenate([rollout['ac'] for rollout in global_rollouts])
             info = global_trainer.update(step, ob, ac)
-            ep_stats.add_all_summary_dict(summary_writer, info, global_step)
+            global_info.update(info)
         else:
             trainer.copy_network()
 
-        pbar.set_description('')
+        # evaluate local policies
+        for trainer in trainers:
+            trainer.evaluate(global_step, record=args.training_video_record)
+
+        # evaluate global policy
+        info = global_trainer.summary(step)
+        global_info.update(info)
+        ep_stats.add_all_summary_dict(summary_writer, global_info, global_step)
+        pbar.set_description(
+            '[step {}] reward {} length {} success {}'.format(
+                step, global_info['reward'], global_info['length'], global_info['success'])
+        )
 
     for env in envs:
         env.close()
