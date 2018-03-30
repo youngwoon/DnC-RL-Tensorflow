@@ -37,6 +37,12 @@ def run(args):
     sess = U.single_threaded_session()
     sess.__enter__()
 
+    if args.method == 'trpo':
+        args.R = args.T * args.R
+        args.T = 1
+        args.num_workers = 1
+        args.ckpt_save_step = 100
+
     # setting envs and networks
     with tf.device("/cpu:0"):
         global_env = gym.make(args.env)
@@ -50,7 +56,8 @@ def run(args):
         trainers = []
         for i in range(args.num_workers):
             env = gym.make(args.env)
-            env.unwrapped.set_context(i)
+            if args.method == 'dnc':
+                env.unwrapped.set_context(i)
             network = MlpPolicy(i, 'local_%d' % i, env, args)
             old_network = MlpPolicy(i, 'old_local_%d' % i, env, args)
 
@@ -157,8 +164,11 @@ def run(args):
         ob = np.concatenate([rollout['ob'] for rollout in global_rollouts])
         ac = np.concatenate([rollout['ac'] for rollout in global_rollouts])
 
-        info = global_trainer.update(step, ob, ac)
-        ep_stats.add_all_summary_dict(summary_writer, info, global_step)
+        if args.method == 'dnc':
+            info = global_trainer.update(step, ob, ac)
+            ep_stats.add_all_summary_dict(summary_writer, info, global_step)
+        else:
+            trainer.copy_network()
 
         pbar.set_description('')
 
