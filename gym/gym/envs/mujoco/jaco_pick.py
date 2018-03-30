@@ -9,14 +9,14 @@ class JacoPickEnv(JacoEnv):
     def __init__(self, with_rot=1):
         super().__init__(with_rot=with_rot)
         self._config.update({
-            "pick_reward": 1,
-            "random_box": 1,
+            "pick_reward": 100,
+            "random_box": 0.1,
         })
         self._context = -1
 
         # state
         self._pick_count = 0
-        self._init_box_pos = np.asarray([0.5, 0.2, 0.03])
+        self._init_box_pos = np.asarray([0.5, 0.0, 0.03])
 
         # env info
         self.reward_type += ["pick_reward", "success"]
@@ -41,7 +41,7 @@ class JacoPickEnv(JacoEnv):
         box_z = self._get_box_pos()[2]
         in_air = box_z > 0.06
         on_ground = box_z < 0.06
-        in_hand = dist_hand < 0.08
+        in_hand = dist_hand < 0.06
 
         # pick
         if in_air and in_hand:
@@ -59,7 +59,7 @@ class JacoPickEnv(JacoEnv):
             print('success')
 
         reward = ctrl_reward + pick_reward
-        info = {"ctrl_reward_mean": ctrl_reward,
+        info = {"ctrl_reward_sum": ctrl_reward,
                 "pick_reward_sum": pick_reward,
                 "success_sum": success}
         return ob, reward, done, info
@@ -78,6 +78,7 @@ class JacoPickEnv(JacoEnv):
 
         # set box's initial position
         sx, sy, ex, ey = -0.15, -0.15, 0.15, 0.15
+        sy = 0
         if self._context == 0:
             sx, sy = 0, 0
         elif self._context == 1:
@@ -89,7 +90,7 @@ class JacoPickEnv(JacoEnv):
 
         self._init_box_pos = np.asarray(
             [0.5 + np.random.uniform(sx, ex) * self._config["random_box"],
-             0.2 + np.random.uniform(sy, ey) * self._config["random_box"],
+             0.0 + np.random.uniform(sy, ey) * self._config["random_box"],
              0.03])
         qpos[9:12] = self._init_box_pos
 
