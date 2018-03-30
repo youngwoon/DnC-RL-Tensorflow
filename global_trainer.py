@@ -13,7 +13,6 @@ from baselines.common import zipsame
 from baselines import logger
 import baselines.common.tf_util as U
 from baselines.common.mpi_adam import MpiAdam
-from baselines.statistics import stats
 
 import dataset
 
@@ -40,13 +39,9 @@ class GlobalTrainer(object):
         self.summary_name = []
 
         # build loss/optimizers
-        self._build()
+        self._build_distillation()
 
-        if self._is_chef and self._config.is_train:
-            self.ep_stats = stats(self.summary_name)
-            self.writer = U.file_writer(config.log_dir)
-
-    def _build(self):
+    def _build_distillation(self):
         config = self._config
         pi = self._policy
 
@@ -96,7 +91,7 @@ class GlobalTrainer(object):
         for key, value in info.items():
             info[key] = np.mean(value)
         info['global/global_norm'] = self._global_norm()
-        self.ep_stats.add_all_summary_dict(self.writer, info, step)
+        return info
 
     def summary(self, it):
         if not self._is_chef or it % self._config.ckpt_save_step > 0:

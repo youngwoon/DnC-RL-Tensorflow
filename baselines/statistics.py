@@ -27,7 +27,7 @@ class stats():
 
         registered_keys = []
         for scope in scopes:
-            with tf.variable_scope(scope):
+            with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
                 for k in scalar_keys:
                     if k.startswith(scope):
                         name = '/'.join(k.split('/')[1:])
@@ -38,7 +38,7 @@ class stats():
                         registered_keys.append(k)
                         self.summaries_map[k] = ph
 
-        with tf.variable_scope('summary'):
+        with tf.variable_scope('summary', reuse=tf.AUTO_REUSE):
             for k in scalar_keys:
                 if k not in registered_keys:
                     ph = tf.placeholder('float32', None, name=k+'.scalar.summary')

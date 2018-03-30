@@ -12,6 +12,7 @@ import numpy as np
 import gym
 
 import baselines.common.tf_util as U
+from baselines.statistics import stats
 
 import config
 from mlp_policy import MlpPolicy
@@ -81,6 +82,11 @@ def run(args):
     summary_writer = tf.summary.FileWriter(log_dir)
     logger.info("Events directory: %s", log_dir)
 
+    summary_name = global_trainer.summary_name.copy()
+    for trainer in trainers:
+        summary_name.extend(trainer.summary_name)
+    ep_stats = stats(summary_name)
+
     # start training
     coord = tf.train.Coordinator()
     if args.load_model_path:
@@ -119,7 +125,8 @@ def run(args):
         ob = np.concatenate([rollout['ob'] for rollout in rollouts])
         ac = np.concatenate([rollout['ac'] for rollout in rollouts])
 
-        global_trainer.update(step, ob, ac)
+        info = global_trainer.update(step, ob, ac)
+        ep_stats.add_all_summary_dict(summary_writer, info, global_step)
 
         pbar.set_description('')
 

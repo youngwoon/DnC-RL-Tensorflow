@@ -55,8 +55,6 @@ class LocalTrainer(object):
 
         if self._is_chef and self._config.is_train:
             self.summary_name = ['{}/{}'.format(self._name, key) for key in self.summary_name]
-            self.ep_stats = stats(self.summary_name)
-            self.writer = U.file_writer(config.log_dir)
 
     def init_network(self):
         self._init_network()
@@ -170,9 +168,12 @@ class LocalTrainer(object):
             for key, value in self.rollout.items():
                 if key.startswith('ep_'):
                     info[key.split('ep_')[1]] = np.mean(value)
+
+            logger.log('[worker {}] iter: {}, rewards: {}, length: {}'.format(
+                self._id, global_step, np.mean(info["reward"]), np.mean(info["length"])))
             info = {'{}/{}'.format(self._name, key):np.mean(value) for key, value in info.items()}
-            self.ep_stats.add_all_summary_dict(self.writer, info, global_step)
             global_step = sess.run(self.update_global_step)
+            return info
 
     def evaluate(self, rollout, ckpt_num=None):
         config = self._config
@@ -252,11 +253,10 @@ class LocalTrainer(object):
                 self._set_from_flat(thnew)
                 meanlosses = self._compute_losses(*args)
                 meanlosses = {k: self._all_mean(np.array(meanlosses[k])) for k in sorted(meanlosses.keys())}
-                #print('mean', [float(meanlosses[k]) for k in ['pol_loss', 'kl', 'pol_entpen', 'pol_surr', 'entropy']])
                 if self._is_chef:
                     for key, value in meanlosses.items():
                         if key != 'g':
-                            info['trpo/' + key].append(value)
+                            info[key].append(value)
                 surr = meanlosses['pol_loss']
                 kl = meanlosses['kl']
                 meanlosses = np.array(list(meanlosses.values()))
@@ -288,7 +288,7 @@ class LocalTrainer(object):
                     self._vf_adam.update(g, self._config.vf_stepsize)
                     vf_loss = self._all_mean(np.array(self._compute_vfloss(*ob_list, mbret)))
                     if self._is_chef:
-                        info['trpo/vf_loss'].append(vf_loss)
+                        info['vf_loss'].append(vf_loss)
 
         if self._is_chef:
             for key, value in info.items():
