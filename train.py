@@ -177,7 +177,7 @@ def run(args):
             ep_stats.add_all_summary_dict(summary_writer, info, global_step)
 
         # update global policy
-        global_info = {}
+        global_info = info
         if args.method == 'dnc':
             ob = np.concatenate([rollout['ob'] for rollout in global_rollouts])
             ac = np.concatenate([rollout['ac'] for rollout in global_rollouts])

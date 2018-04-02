@@ -49,7 +49,7 @@ class LocalTrainer(object):
         self._is_chef = (MPI.COMM_WORLD.Get_rank() == 0)
         self._num_workers = MPI.COMM_WORLD.Get_size()
         if self._is_chef:
-            self.summary_name = ["reward", "length"]
+            self.summary_name = ["reward", "length", "adv"]
             self.summary_name += env.unwrapped.reward_type
 
         # build loss/optimizers
@@ -233,11 +233,12 @@ class LocalTrainer(object):
     def _update_policy(self, rollouts, it):
         pi = self._policy
         seg = rollouts[self._id]
-        ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
-        atarg = (atarg - atarg.mean()) / atarg.std()
-
         if self._is_chef:
             info = defaultdict(list)
+
+        ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
+        atarg = (atarg - atarg.mean()) / atarg.std()
+        info['adv'] = np.mean(atarg)
 
         ob_dict = self._env.get_ob_dict(ob)
         if self._config.obs_norm:
