@@ -99,7 +99,7 @@ def run(args):
         old_networks.append(old_network)
 
     for i in range(args.num_workers):
-        runner = Runner(env, network, config=args)
+        runner = Runner(env, networks[i], config=args)
         trainer = LocalTrainer(i, envs[i], runner,
                                networks[i], old_networks[i], networks,
                                global_network, args)
