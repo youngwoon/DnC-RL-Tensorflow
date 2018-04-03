@@ -78,7 +78,7 @@ class MlpPolicy(object):
             with tf.variable_scope('vf', reuse=tf.AUTO_REUSE):
                 last_out = obz
                 for i in range(num_hid_layers):
-                    last_out = tf.nn.tanh(
+                    last_out = self._activation(
                         tf.layers.dense(last_out, hid_size[i], name="fc%i" % (i+1),
                                         kernel_initializer=U.normc_initializer(1.0)))
                 vpred = tf.layers.dense(last_out, 1, name="final",
@@ -93,7 +93,7 @@ class MlpPolicy(object):
             with tf.variable_scope('pol', reuse=tf.AUTO_REUSE):
                 last_out = obz
                 for i in range(num_hid_layers):
-                    last_out = tf.nn.tanh(
+                    last_out = self._activation(
                         tf.layers.dense(last_out, hid_size[i], name="fc%i" % (i+1),
                                         kernel_initializer=U.normc_initializer(1.0)))
 
