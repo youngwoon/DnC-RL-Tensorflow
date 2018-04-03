@@ -30,7 +30,7 @@ def argparser():
     parser.add_argument('--load_model_path', type=str, default=None)
     parser.add_argument('--T', type=int, default=1000,
                         help="Number of training loop")
-    parser.add_argument('--R', type=int, default=50,
+    parser.add_argument('--R', type=int, default=100,
                         help="Distillation period")
     parser.add_argument('--num_rollouts', type=int, default=10000)
     parser.add_argument('--batch_size', type=int, default=128)
@@ -53,7 +53,7 @@ def argparser():
     parser.add_argument('--divergence_coeff', type=float, default=1e-2)
 
     # global network
-    parser.add_argument('--global_stepsize', type=float, default=1e-3)
+    parser.add_argument('--global_stepsize', type=float, default=1e-2)
     parser.add_argument('--global_max_grad_norm', type=float, default=10.0)
 
     # log, record, ckpt
