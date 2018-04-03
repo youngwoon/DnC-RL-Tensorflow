@@ -41,7 +41,7 @@ class JacoPickEnv(JacoEnv):
         box_z = self._get_box_pos()[2]
         in_air = box_z > 0.06
         on_ground = box_z < 0.06
-        in_hand = dist_hand < 0.06
+        in_hand = dist_hand < 0.08
 
         # pick
         if in_air and in_hand:
@@ -67,7 +67,7 @@ class JacoPickEnv(JacoEnv):
     def _get_obs(self):
         qpos = self.model.data.qpos
         qvel = self.model.data.qvel
-        return np.concatenate([qpos, np.clip(qvel, -30, 30)]).ravel()
+        return np.concatenate([qpos, np.clip(qvel, -10, 10)]).ravel()
 
     def get_ob_dict(self, ob):
         return {'joint': ob}
