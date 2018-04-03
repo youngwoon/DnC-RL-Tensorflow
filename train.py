@@ -78,38 +78,39 @@ def run(args):
         args.num_workers = 1
 
     # setting envs and networks
-    with tf.device("/cpu:0"):
-        global_env = gym.make(args.env)
-        global_network = MlpPolicy(0, 'global', global_env, args)
-        global_runner = Runner(global_env, global_network, config=args)
-        global_trainer = GlobalTrainer('global', global_env, global_runner, global_network, args)
+    global_env = gym.make(args.env)
+    global_network = MlpPolicy(0, 'global', global_env, args)
+    global_runner = Runner(global_env, global_network, config=args)
+    global_trainer = GlobalTrainer('global', global_env, global_runner, global_network, args)
 
-        envs = []
-        networks = []
-        old_networks = []
-        trainers = []
-        for i in range(args.num_workers):
-            env = gym.make(args.env)
-            if args.method == 'dnc':
-                env.unwrapped.set_context(i)
-            network = MlpPolicy(i, 'local_%d' % i, env, args)
-            old_network = MlpPolicy(i, 'old_local_%d' % i, env, args)
+    envs = []
+    networks = []
+    old_networks = []
+    trainers = []
+    for i in range(args.num_workers):
+        env = gym.make(args.env)
+        if args.method == 'dnc':
+            env.unwrapped.set_context(i)
+        network = MlpPolicy(i, 'local_%d' % i, env, args)
+        old_network = MlpPolicy(i, 'old_local_%d' % i, env, args)
 
-            envs.append(env)
-            networks.append(network)
-            old_networks.append(old_network)
+        envs.append(env)
+        networks.append(network)
+        old_networks.append(old_network)
 
-        for i in range(args.num_workers):
-            runner = Runner(env, network, config=args)
-            trainer = LocalTrainer(i, envs[i], runner,
-                                   networks[i], old_networks[i], networks,
-                                   global_network, args)
-            trainers.append(trainer)
+    for i in range(args.num_workers):
+        runner = Runner(env, network, config=args)
+        trainer = LocalTrainer(i, envs[i], runner,
+                               networks[i], old_networks[i], networks,
+                               global_network, args)
+        trainers.append(trainer)
 
     # summaries
     print_variables()
 
     exp_name = '{}_{}'.format(args.env, args.method)
+    if args.prefix:
+        exp_name = '{}_{}'.format(exp_name, args.prefix)
     args.log_dir = os.path.join(args.log_dir, exp_name)
     summary_writer = tf.summary.FileWriter(args.log_dir)
     logger.info("Events directory: %s", args.log_dir)
@@ -137,11 +138,6 @@ def run(args):
     if args.threading:
         raise NotImplementedError('Multi-threading is not implemented.')
         coord = tf.train.Coordinator()
-        worker_threads = []
-        for trainer in trainers:
-            worker = lambda: trainer.update(sess)
-            t = threading.Thread(target=(worker))
-            worker_threads.append(t)
 
     global_step = sess.run(trainers[0].global_step)
     logger.info("Starting training at step=%d", global_step)
@@ -155,12 +151,16 @@ def run(args):
         for _ in range(args.R):
             # get rollouts
             if args.threading:
-                for t in worker_threads:
+                rollout_threads = []
+                for trainer in trainers:
+                    worker = lambda: trainer.generate_rollout(sess)
+                    t = threading.Thread(target=(worker))
                     t.start()
-                coord.join(worker_threads)
+                    rollout_threads.append(t)
+                coord.join(rollout_threads)
             else:
                 for trainer in trainers:
-                    trainer.generate_rollout()
+                    trainer.generate_rollout(sess)
 
             rollouts = []
             for trainer in trainers:

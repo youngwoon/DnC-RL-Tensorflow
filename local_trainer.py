@@ -169,11 +169,12 @@ class LocalTrainer(object):
         self._vf_adam.sync()
         print("Init param sum", th_init.sum())
 
-    def generate_rollout(self):
-        with self.timed("sampling"):
-            rollout = self._runner.rollout(stochastic=True)
-            self._runner.add_advantage(rollout, 0.99, 0.98)
-        self.rollout = rollout
+    def generate_rollout(self, sess):
+        with sess.as_default(), sess.graph.as_default():
+            with self.timed("sampling"):
+                rollout = self._runner.rollout(stochastic=True)
+                self._runner.add_advantage(rollout, 0.99, 0.98)
+            self.rollout = rollout
 
     def update(self, sess, rollouts):
         config = self._config

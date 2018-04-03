@@ -201,15 +201,19 @@ def make_session(num_cpu, gpu=False):
     tf_config = tf.ConfigProto(
         inter_op_parallelism_threads=num_cpu,
         intra_op_parallelism_threads=num_cpu)
-    tf_config.gpu_options.per_process_gpu_memory_fraction = 1 / 10.
-    tf_config.gpu_options.allow_growth = True
-    tf_config.gpu_options.allocator_type = 'BFC'
+    if gpu:
+        tf_config.gpu_options.per_process_gpu_memory_fraction = 1 / 10.
+        tf_config.gpu_options.allow_growth = True
+        tf_config.gpu_options.allocator_type = 'BFC'
     return tf.Session(config=tf_config)
 
 def single_threaded_session(gpu=False):
     """Returns a session which will only use a single CPU"""
     return make_session(1, gpu)
 
+def multiple_threaded_session(cpu=1, gpu=False):
+    """Returns a session which will use multiple CPUs"""
+    return make_session(cpu, gpu)
 
 ALREADY_INITIALIZED = set()
 
