@@ -10,10 +10,9 @@ import tqdm
 import moviepy.editor as mpy
 from contextlib import contextmanager
 
-from baselines.common import zipsame
 from baselines import logger
-from baselines.common import colorize
 import baselines.common.tf_util as U
+from baselines.common import zipsame, colorize
 from baselines.common.mpi_adam import MpiAdam
 from baselines.common.cg import cg
 
@@ -259,7 +258,7 @@ class LocalTrainer(object):
 
         self._update_oldpi()
 
-        with self.timed("computegrad"):
+        with self.timed("compute gradient"):
             lossbefore = self._compute_lossandgrad(*args)
             lossbefore = {k: self._all_mean(np.array(lossbefore[k])) for k in sorted(lossbefore.keys())}
         g = lossbefore['g']
@@ -308,7 +307,7 @@ class LocalTrainer(object):
                 paramsums = MPI.COMM_WORLD.allgather((thnew.sum(), self._vf_adam.getflat().sum())) # list of tuples
                 assert all(np.allclose(ps, paramsums[0]) for ps in paramsums[1:])
 
-        with self.timed("vf"):
+        with self.timed("updating value function"):
             for _ in range(self._config.vf_iters):
                 for (mbob, mbret) in dataset.iterbatches((ob, tdlamret),
                 include_final_partial_batch=False, batch_size=64):

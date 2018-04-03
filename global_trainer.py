@@ -1,16 +1,17 @@
 import os.path as osp
 import os
+import time
 from collections import defaultdict
 
 import numpy as np
 import tensorflow as tf
-from mpi4py import MPI
 import moviepy.editor as mpy
 import tqdm
+from contextlib import contextmanager
 
-from baselines.common import zipsame
 from baselines import logger
 import baselines.common.tf_util as U
+from baselines.common import colorize
 from baselines.common.mpi_adam import MpiAdam
 
 import dataset
@@ -33,7 +34,6 @@ class GlobalTrainer(object):
         self._update_global_step = tf.assign(self.global_step, self.global_step + 1)
 
         # tensorboard summary
-        self._is_chef = (MPI.COMM_WORLD.Get_rank() == 0)
         self.summary_name = []
 
         # build loss/optimizers
@@ -50,9 +50,8 @@ class GlobalTrainer(object):
         print(var_list)
         self._adam = MpiAdam(var_list)
         fetch_dict = {'loss': tf.reduce_mean(pi.pd.neglogp(ac))}
-        if self._is_chef:
-            self.summary_name += ['global/' + key for key in fetch_dict.keys()]
-            self.summary_name += ['global/grad_norm', 'global/global_norm']
+        self.summary_name += ['global/' + key for key in fetch_dict.keys()]
+        self.summary_name += ['global/grad_norm', 'global/global_norm']
         fetch_dict['g'] = U.flatgrad(fetch_dict['loss'], var_list, clip_norm=config.global_max_grad_norm)
         self._loss = U.function([ac] + pi.ob, fetch_dict)
         self._global_norm = U.function([], tf.global_norm([tf.cast(var, tf.float32) for var in pi.get_variables()]))
@@ -60,6 +59,13 @@ class GlobalTrainer(object):
         # initialize and sync
         U.initialize()
         self._adam.sync()
+
+    @contextmanager
+    def timed(self, msg):
+        print(colorize(msg, color='magenta'))
+        tstart = time.time()
+        yield
+        print(colorize("done in %.3f seconds"%(time.time() - tstart), color='magenta'))
 
     def update(self, step, ob, ac):
         info = defaultdict(list)
@@ -78,16 +84,17 @@ class GlobalTrainer(object):
             for ob_name in pi.ob_type:
                 pi.ob_rms[ob_name].update(ob_dict[ob_name])
 
-        for (mb_ob, mb_ac) in dataset.iterbatches(
-            (ob, ac), include_final_partial_batch=False,
-            batch_size=self._config.batch_size, shuffle=True):
-            ob_list = pi.get_ob_list(mb_ob)
-            fetched = self._loss(mb_ac, *ob_list)
-            loss, g = fetched['loss'], fetched['g']
-            self._adam.update(g, self._config.global_stepsize)
+        with self.timed("update global network"):
+            for (mb_ob, mb_ac) in dataset.iterbatches(
+                (ob, ac), include_final_partial_batch=False,
+                batch_size=self._config.batch_size, shuffle=True):
+                ob_list = pi.get_ob_list(mb_ob)
+                fetched = self._loss(mb_ac, *ob_list)
+                loss, g = fetched['loss'], fetched['g']
+                self._adam.update(g, self._config.global_stepsize)
 
-            info['global/loss'].append(np.mean(loss))
-            info['global/grad_norm'].append(np.linalg.norm(g))
+                info['global/loss'].append(np.mean(loss))
+                info['global/grad_norm'].append(np.linalg.norm(g))
 
         for key, value in info.items():
             info[key] = np.mean(value)
@@ -98,7 +105,7 @@ class GlobalTrainer(object):
         info = self.evaluate(it, record=self._config.training_video_record)
 
         # save checkpoint
-        if self._is_chef and it % self._config.ckpt_save_step == 0:
+        if it % self._config.ckpt_save_step == 0:
             fname = osp.join(self._config.log_dir, '%.5d' % it)
             U.save_state(fname)
 
