@@ -47,14 +47,13 @@ class LocalTrainer(object):
         # tensorboard summary
         self._is_chef = (MPI.COMM_WORLD.Get_rank() == 0)
         self._num_workers = MPI.COMM_WORLD.Get_size()
-        if self._is_chef:
-            self.summary_name = ["reward", "length", "adv"]
-            self.summary_name += env.unwrapped.reward_type
+        self.summary_name = ["reward", "length", "adv"]
+        self.summary_name += env.unwrapped.reward_type
 
         # build loss/optimizers
         self._build_trpo()
 
-        if self._is_chef and self._config.is_train:
+        if self._config.is_train:
             self.summary_name = ['{}/{}'.format(self._name, key) for key in self.summary_name]
 
     def init_network(self):
@@ -65,13 +64,10 @@ class LocalTrainer(object):
 
     @contextmanager
     def timed(self, msg):
-        if self._is_chef:
-            print(colorize(msg, color='magenta'))
-            tstart = time.time()
-            yield
-            print(colorize("done in %.3f seconds"%(time.time() - tstart), color='magenta'))
-        else:
-            yield
+        print(colorize(msg, color='magenta'))
+        tstart = time.time()
+        yield
+        print(colorize("done in %.3f seconds"%(time.time() - tstart), color='magenta'))
 
     def _all_mean(self, x):
         assert isinstance(x, np.ndarray)
@@ -131,9 +127,8 @@ class LocalTrainer(object):
                       'pol_divergence': pol_divergence,
                       'kl': mean_kl,
                       'entropy': mean_ent}
-        if self._is_chef:
-            self.summary_name += ['vf_loss']
-            self.summary_name += pol_losses.keys()
+        self.summary_name += ['vf_loss']
+        self.summary_name += pol_losses.keys()
 
         self._get_flat = U.GetFlat(pol_var_list)
         self._set_from_flat = U.SetFromFlat(pol_var_list)
@@ -233,8 +228,7 @@ class LocalTrainer(object):
     def _update_policy(self, rollouts, it):
         pi = self._policy
         seg = rollouts[self._id]
-        if self._is_chef:
-            info = defaultdict(list)
+        info = defaultdict(list)
 
         ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
         atarg = (atarg - atarg.mean()) / atarg.std()
@@ -281,10 +275,9 @@ class LocalTrainer(object):
                 self._set_from_flat(thnew)
                 meanlosses = self._compute_losses(*args)
                 meanlosses = {k: self._all_mean(np.array(meanlosses[k])) for k in sorted(meanlosses.keys())}
-                if self._is_chef:
-                    for key, value in meanlosses.items():
-                        if key != 'g':
-                            info[key].append(value)
+                for key, value in meanlosses.items():
+                    if key != 'g':
+                        info[key].append(value)
                 surr = meanlosses['pol_loss']
                 kl = meanlosses['kl']
                 meanlosses = np.array(list(meanlosses.values()))
@@ -315,14 +308,11 @@ class LocalTrainer(object):
                     g = self._all_mean(self._compute_vflossandgrad(*ob_list, mbret))
                     self._vf_adam.update(g, self._config.vf_stepsize)
                     vf_loss = self._all_mean(np.array(self._compute_vfloss(*ob_list, mbret)))
-                    if self._is_chef:
-                        info['vf_loss'].append(vf_loss)
+                    info['vf_loss'].append(vf_loss)
 
-        if self._is_chef:
-            for key, value in info.items():
-                info[key] = np.mean(value)
-            return info
-        return None
+        for key, value in info.items():
+            info[key] = np.mean(value)
+        return info
 
 
 def flatten_lists(listoflists):
