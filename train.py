@@ -131,12 +131,21 @@ def run(args):
                 ckpt_path = tf.train.latest_checkpoint(load_model_path)
             else:
                 ckpt_path = load_model_path
+            logger.info("Load checkpoint: %s", ckpt_path)
             U.load_state(ckpt_path, var_list)
             return ckpt_path
         load_model(args.load_model_path)
     else:
         sess.run(tf.global_variables_initializer())
 
+    # evaluation
+    if not args.is_train:
+        global_trainer.evaluate(ckpt_num=None, record=args.record)
+        for trainer in trainers:
+            trainer.evaluate(ckpt_num=None, record=args.record)
+        return
+
+    # training
     if args.threading:
         raise NotImplementedError('Multi-threading is not implemented.')
         coord = tf.train.Coordinator()

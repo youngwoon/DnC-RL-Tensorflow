@@ -223,8 +223,8 @@ class LocalTrainer(object):
                 video = mpy.VideoClip(f, duration=len(visual_obs)/fps+2)
                 video.write_videofile(video_path, fps, verbose=False)
 
-        logger.log('[{}] Episode Length: {}'.format(self._name, sum(ep_lens) / 10.))
-        logger.log('[{}] Episode Rewards: {}'.format(self._name, sum(ep_rets) / 10.))
+        logger.log('[{}] Episode Length: {}'.format(self._name, np.mean(ep_lens)))
+        logger.log('[{}] Episode Rewards: {}'.format(self._name, np.mean(ep_rets)))
 
     def _update_policy(self, rollouts, it):
         pi = self._policy

@@ -144,6 +144,6 @@ class GlobalTrainer(object):
                 video = mpy.VideoClip(f, duration=len(visual_obs)/fps+2)
                 video.write_videofile(video_path, fps, verbose=False)
 
-        logger.log('[{}] Episode Length: {}'.format(self._name, sum(ep_lens) / 10.))
-        logger.log('[{}] Episode Rewards: {}'.format(self._name, sum(ep_rets) / 10.))
-        return {'length': sum(ep_lens) / 10., 'reward': sum(ep_rets) / 10., 'success': sum(ep_success) / 10.}
+        logger.log('[{}] Episode Length: {}'.format(self._name, np.mean(ep_lens)))
+        logger.log('[{}] Episode Rewards: {}'.format(self._name, np.mean(ep_rets)))
+        return {'length': np.mean(ep_lens), 'reward': np.mean(ep_rets), 'success': np.mean(ep_success)}
