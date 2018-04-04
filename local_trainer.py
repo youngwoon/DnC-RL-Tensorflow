@@ -119,6 +119,7 @@ class LocalTrainer(object):
                 pairwise_divergence.append(tf.reduce_mean(pi.pds[self._id].kl(other_pi.pds[self._id])))
                 pairwise_divergence.append(tf.reduce_mean(other_pi.pds[i].kl(pi.pds[i])))
         pol_divergence = self._config.divergence_coeff * tf.reduce_mean(pairwise_divergence)
+        pol_divergence /= self._num_workers * self._num_workers
 
         pol_loss = pol_surr + pol_entpen + pol_divergence
         pol_losses = {'pol_loss': pol_loss,

@@ -50,7 +50,7 @@ def argparser():
     parser.add_argument('--vf_iters', type=int, default=5)
     parser.add_argument('--ent_coeff', type=float, default=0)
 
-    parser.add_argument('--divergence_coeff', type=float, default=1e-2)
+    parser.add_argument('--divergence_coeff', type=float, default=2e-3)
 
     # global network
     parser.add_argument('--global_stepsize', type=float, default=1e-2)
