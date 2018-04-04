@@ -37,7 +37,7 @@ def argparser():
     # local network (trpo)
     parser.add_argument('--num_hid_layers', type=int, default=2)
     parser.add_argument('--hid_size', type=int, nargs='*', default=[64, 64])
-    parser.add_argument('--activation', type=str, default='relu',
+    parser.add_argument('--activation', type=str, default='tanh',
                         choices=['relu', 'elu', 'tanh'])
     parser.add_argument('--fixed_var', type=str2bool, default=True)
     parser.add_argument('--obs_norm', type=str2bool, default=True)
