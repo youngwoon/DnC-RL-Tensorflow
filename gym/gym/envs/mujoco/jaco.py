@@ -61,8 +61,9 @@ class JacoEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         #self.viewer.cam.trackbodyid = 1
         self.viewer.cam.trackbodyid = -1
         #self.viewer.cam.distance = self.model.stat.extent * 2
-        self.viewer.cam.distance = 3
-        self.viewer.cam.azimuth = 260
+        self.viewer.cam.distance = 2
+        #self.viewer.cam.azimuth = 260
+        self.viewer.cam.azimuth = 170
         #self.viewer.cam.azimuth = 90
         self.viewer.cam.lookat[0] = 0.5
         self.viewer.cam.lookat[1] = 0
