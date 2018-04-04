@@ -147,7 +147,6 @@ def run(args):
         for trainer in trainers:
             trainer.init_network()
 
-        global_rollouts = []
         for _ in range(args.R):
             # get rollouts
             if args.threading:
@@ -165,7 +164,6 @@ def run(args):
             rollouts = []
             for trainer in trainers:
                 rollouts.append(trainer.rollout)
-            global_rollouts.extend(rollouts)
 
             # update local policies
             info = {}
@@ -176,11 +174,11 @@ def run(args):
             global_step = sess.run(trainer.global_step)
             ep_stats.add_all_summary_dict(summary_writer, info, global_step)
 
-        # update global policy
+        # update global policy using the last rollouts
         global_info = info
         if args.method == 'dnc':
-            ob = np.concatenate([rollout['ob'] for rollout in global_rollouts])
-            ac = np.concatenate([rollout['ac'] for rollout in global_rollouts])
+            ob = np.concatenate([rollout['ob'] for rollout in rollouts])
+            ac = np.concatenate([rollout['ac'] for rollout in rollouts])
             info = global_trainer.update(step, ob, ac)
             global_info.update(info)
         else:

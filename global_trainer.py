@@ -85,16 +85,17 @@ class GlobalTrainer(object):
                 pi.ob_rms[ob_name].update(ob_dict[ob_name])
 
         with self.timed("update global network"):
-            for (mb_ob, mb_ac) in dataset.iterbatches(
-                (ob, ac), include_final_partial_batch=False,
-                batch_size=self._config.batch_size, shuffle=True):
-                ob_list = pi.get_ob_list(mb_ob)
-                fetched = self._loss(mb_ac, *ob_list)
-                loss, g = fetched['loss'], fetched['g']
-                self._adam.update(g, self._config.global_stepsize)
+            for _ in range(self._config.global_iters):
+                for (mb_ob, mb_ac) in dataset.iterbatches(
+                        (ob, ac), include_final_partial_batch=False,
+                        batch_size=self._config.global_batch_size):
+                    ob_list = pi.get_ob_list(mb_ob)
+                    fetched = self._loss(mb_ac, *ob_list)
+                    loss, g = fetched['loss'], fetched['g']
+                    self._adam.update(g, self._config.global_stepsize)
 
-                info['global/loss'].append(np.mean(loss))
-                info['global/grad_norm'].append(np.linalg.norm(g))
+                    info['global/loss'].append(np.mean(loss))
+                    info['global/grad_norm'].append(np.linalg.norm(g))
 
         for key, value in info.items():
             info[key] = np.mean(value)

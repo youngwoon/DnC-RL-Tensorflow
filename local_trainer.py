@@ -303,8 +303,9 @@ class LocalTrainer(object):
 
         with self.timed("updating value function"):
             for _ in range(self._config.vf_iters):
-                for (mbob, mbret) in dataset.iterbatches((ob, tdlamret),
-                include_final_partial_batch=False, batch_size=64):
+                for (mbob, mbret) in dataset.iterbatches(
+                        (ob, tdlamret), include_final_partial_batch=False,
+                        batch_size=self._config.vf_batch_size):
                     ob_list = pi.get_ob_list(mbob)
                     g = self._all_mean(self._compute_vflossandgrad(*ob_list, mbret))
                     self._vf_adam.update(g, self._config.vf_stepsize)

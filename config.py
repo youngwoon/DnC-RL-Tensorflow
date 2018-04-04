@@ -33,7 +33,6 @@ def argparser():
     parser.add_argument('--R', type=int, default=100,
                         help="Distillation period")
     parser.add_argument('--num_rollouts', type=int, default=10000)
-    parser.add_argument('--batch_size', type=int, default=128)
 
     # local network (trpo)
     parser.add_argument('--num_hid_layers', type=int, default=2)
@@ -48,13 +47,16 @@ def argparser():
     parser.add_argument('--cg_damping', type=float, default=0.1)
     parser.add_argument('--vf_stepsize', type=float, default=1e-3)
     parser.add_argument('--vf_iters', type=int, default=5)
+    parser.add_argument('--vf_batch_size', type=int, default=64)
     parser.add_argument('--ent_coeff', type=float, default=0)
 
     parser.add_argument('--divergence_coeff', type=float, default=2e-3)
 
     # global network
     parser.add_argument('--global_stepsize', type=float, default=1e-2)
+    parser.add_argument('--global_iters', type=int, default=5)
     parser.add_argument('--global_max_grad_norm', type=float, default=10.0)
+    parser.add_argument('--global_batch_size', type=int, default=64)
 
     # log, record, ckpt
     parser.add_argument('--ckpt_save_step', type=int, default=1)
