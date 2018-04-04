@@ -200,7 +200,7 @@ class LocalTrainer(object):
             record_dir = osp.join(config.log_dir, 'video')
             os.makedirs(record_dir, exist_ok=True)
 
-        for _ in tqdm.trange(10):
+        for _ in tqdm.trange(5):
             ep_traj = self._runner.rollout(True, True)
             ep_lens.append(ep_traj["ep_length"][0])
             ep_rets.append(ep_traj["ep_reward"][0])

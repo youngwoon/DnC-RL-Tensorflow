@@ -73,9 +73,6 @@ class GlobalTrainer(object):
         sess = U.get_session()
         global_step = sess.run(self.global_step)
 
-        # backup checkpoint
-        self.summary(step)
-
         sess.run(self._update_global_step)
 
         pi = self._policy
