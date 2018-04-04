@@ -52,6 +52,11 @@ class Runner(object):
         record = config.record or (config.training_video_record and training_inference)
         single_episode = not config.is_train or training_inference
 
+        if config.method == 'dnc' and not pi.name.startswith('global'):
+            env.unwrapped.set_context(pi._id)
+        else:
+            env.unwrapped.set_context(-1)
+
         ob = env.reset()
         ac = env.action_space.sample()
         term = False
