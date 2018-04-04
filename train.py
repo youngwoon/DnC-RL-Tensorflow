@@ -112,16 +112,18 @@ def run(args):
     if args.prefix:
         exp_name = '{}_{}'.format(exp_name, args.prefix)
     args.log_dir = os.path.join(args.log_dir, exp_name)
-    summary_writer = tf.summary.FileWriter(args.log_dir)
     logger.info("Events directory: %s", args.log_dir)
+    os.makedirs(args.log_dir, exist_ok=True)
     write_info(args)
 
-    summary_name = global_trainer.summary_name.copy()
-    for trainer in trainers:
-        summary_name.extend(trainer.summary_name)
-    ep_stats = stats(summary_name)
+    if args.is_train:
+        summary_writer = tf.summary.FileWriter(args.log_dir)
+        summary_name = global_trainer.summary_name.copy()
+        for trainer in trainers:
+            summary_name.extend(trainer.summary_name)
+        ep_stats = stats(summary_name)
 
-    # start training
+    # initialize model
     if args.load_model_path:
         logger.info('Load models from checkpoint...')
         def load_model(load_model_path, var_list=None):
