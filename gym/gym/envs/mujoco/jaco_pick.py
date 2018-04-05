@@ -89,7 +89,7 @@ class JacoPickEnv(JacoEnv):
 
         self._init_box_pos = np.asarray(
             [0.5 + np.random.uniform(sx, ex) * self._config["random_box"],
-             0.15 + np.random.uniform(sy, ey) * self._config["random_box"],
+             0.1 + np.random.uniform(sy, ey) * self._config["random_box"],
              0.03])
         qpos[9:12] = self._init_box_pos
 
