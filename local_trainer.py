@@ -21,7 +21,7 @@ import dataset
 
 class LocalTrainer(object):
     def __init__(self, id, env, runner, policy, old_policy, pis, global_policy, config):
-        self._id = id
+        self.id = id
         self._name = 'local_%d' % id
         self._env = env.unwrapped
         self._runner = runner
@@ -107,7 +107,7 @@ class LocalTrainer(object):
         # divergence
         other_obs = [] # put id-th data
         for other_pi in other_pis:
-            other_obs.extend(other_pi.obs[self._id])
+            other_obs.extend(other_pi.obs[self.id])
         my_obs_for_other = flatten_lists(pi.obs) # put i-th data
         other_obs_for_other = [] # put i-th data
         for i, other_pi in enumerate(other_pis):
@@ -115,8 +115,8 @@ class LocalTrainer(object):
 
         pairwise_divergence = [tf.constant(0.)]
         for i, other_pi in enumerate(other_pis):
-            if i != self._id:
-                pairwise_divergence.append(tf.reduce_mean(pi.pds[self._id].kl(other_pi.pds[self._id])))
+            if i != self.id:
+                pairwise_divergence.append(tf.reduce_mean(pi.pds[self.id].kl(other_pi.pds[self.id])))
                 pairwise_divergence.append(tf.reduce_mean(other_pi.pds[i].kl(pi.pds[i])))
         pol_divergence = self._config.divergence_coeff * tf.reduce_mean(pairwise_divergence)
         pol_divergence /= self._num_workers * self._num_workers
@@ -162,35 +162,37 @@ class LocalTrainer(object):
         MPI.COMM_WORLD.Bcast(th_init, root=0)
         self._set_from_flat(th_init)
         self._vf_adam.sync()
-        print("Init param sum", th_init.sum())
+        rank = MPI.COMM_WORLD.Get_rank()
 
-    def generate_rollout(self, sess):
+        if self._config.debug:
+            logger.log("[worker: {} local net: {}] Init pol param sum: {}".format(rank, self.id, th_init.sum()))
+            logger.log("[worker: {} local net: {}] Init vf param sum: {}".format(rank, self.id, self._vf_adam.getflat().sum()))
+
+    def generate_rollout(self, sess, context=None):
         with sess.as_default(), sess.graph.as_default():
             with self.timed("sampling"):
-                rollout = self._runner.rollout(stochastic=True)
+                rollout = self._runner.rollout(stochastic=True, context=context)
                 self._runner.add_advantage(rollout, 0.99, 0.98)
             self.rollout = rollout
 
-    def update(self, sess, rollouts):
+    def update(self, sess, rollouts, global_step):
         config = self._config
 
         with sess.as_default(), sess.graph.as_default():
-            global_step = sess.run(self.global_step)
-
             # train policy
             info = self._update_policy(rollouts, global_step)
 
-            for key, value in self.rollout.items():
+            for key, value in rollouts[self.id].items():
                 if key.startswith('ep_'):
                     info[key.split('ep_')[1]] = np.mean(value)
 
-            logger.log('[worker {}] iter: {}, rewards: {}, length: {}'.format(
-                self._id, global_step, np.mean(info["reward"]), np.mean(info["length"])))
+            if self._is_chef:
+                logger.log('[worker {}] iter: {}, rewards: {}, length: {}'.format(
+                    self.id, global_step, np.mean(info["reward"]), np.mean(info["length"])))
             info = {'{}/{}'.format(self._name, key):np.mean(value) for key, value in info.items()}
-            global_step = sess.run(self.update_global_step)
             return info
 
-    def evaluate(self, ckpt_num=None, record=False):
+    def evaluate(self, ckpt_num=None, record=False, context=None):
         config = self._config
 
         ep_lens = []
@@ -201,7 +203,7 @@ class LocalTrainer(object):
             os.makedirs(record_dir, exist_ok=True)
 
         for _ in tqdm.trange(5):
-            ep_traj = self._runner.rollout(True, True)
+            ep_traj = self._runner.rollout(True, True, context)
             ep_lens.append(ep_traj["ep_length"][0])
             ep_rets.append(ep_traj["ep_reward"][0])
             logger.log('[{}] Trial #{}: lengths {}, returns {}'.format(
@@ -228,7 +230,7 @@ class LocalTrainer(object):
 
     def _update_policy(self, rollouts, it):
         pi = self._policy
-        seg = rollouts[self._id]
+        seg = rollouts[self.id]
         info = defaultdict(list)
 
         ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]

@@ -44,18 +44,14 @@ class Runner(object):
             cv2.namedWindow(env.spec.id)
             cv2.moveWindow(env.spec.id, 0, 0)
 
-    def rollout(self, stochastic, training_inference=False):
+    def rollout(self, stochastic, training_inference=False, context=None):
         config = self._config
         env = self._env
+        env.unwrapped.set_context(context)
         pi = self._pi
 
         record = config.record or (config.training_video_record and training_inference)
         single_episode = not config.is_train or training_inference
-
-        if config.method == 'dnc' and not pi.name.startswith('global'):
-            env.unwrapped.set_context(pi._id)
-        else:
-            env.unwrapped.set_context(-1)
 
         ob = env.reset()
         ac = env.action_space.sample()

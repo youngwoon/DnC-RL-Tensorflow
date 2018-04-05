@@ -12,7 +12,7 @@ class JacoPickEnv(JacoEnv):
             "pick_reward": 100,
             "random_box": 1,
         })
-        self._context = -1
+        self._context = None
 
         # state
         self._pick_count = 0

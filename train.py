@@ -78,31 +78,24 @@ def run(args):
         args.num_workers = 1
 
     # setting envs and networks
-    global_env = gym.make(args.env)
-    global_network = MlpPolicy(0, 'global', global_env, args)
-    global_runner = Runner(global_env, global_network, config=args)
-    global_trainer = GlobalTrainer('global', global_env, global_runner, global_network, args)
+    env = gym.make(args.env)
+    global_network = MlpPolicy(0, 'global', env, args)
+    global_runner = Runner(env, global_network, args)
+    global_trainer = GlobalTrainer('global', env, global_runner, global_network, args)
 
-    envs = []
     networks = []
     old_networks = []
     trainers = []
     for i in range(args.num_workers):
-        env = gym.make(args.env)
-        if args.method == 'dnc':
-            env.unwrapped.set_context(i)
         network = MlpPolicy(i, 'local_%d' % i, env, args)
         old_network = MlpPolicy(i, 'old_local_%d' % i, env, args)
-
-        envs.append(env)
         networks.append(network)
         old_networks.append(old_network)
 
     for i in range(args.num_workers):
-        runner = Runner(env, networks[i], config=args)
-        trainer = LocalTrainer(i, envs[i], runner,
-                               networks[i], old_networks[i], networks,
-                               global_network, args)
+        runner = Runner(env, networks[i], args)
+        trainer = LocalTrainer(i, env, runner, networks[i], old_networks[i],
+                               networks, global_network, args)
         trainers.append(trainer)
 
     # summaries
@@ -142,7 +135,7 @@ def run(args):
     if not args.is_train:
         global_trainer.evaluate(ckpt_num=None, record=args.record)
         for trainer in trainers:
-            trainer.evaluate(ckpt_num=None, record=args.record)
+            trainer.evaluate(ckpt_num=None, record=args.record, context=trainer.id)
         return
 
     # training
@@ -160,20 +153,10 @@ def run(args):
 
         for _ in range(args.R):
             # get rollouts
-            if args.threading:
-                rollout_threads = []
-                for trainer in trainers:
-                    worker = lambda: trainer.generate_rollout(sess)
-                    t = threading.Thread(target=(worker))
-                    t.start()
-                    rollout_threads.append(t)
-                coord.join(rollout_threads)
-            else:
-                for trainer in trainers:
-                    trainer.generate_rollout(sess)
-
             rollouts = []
             for trainer in trainers:
+                trainer.generate_rollout(sess=sess,
+                                         context=trainer.id if args.method == 'dnc' else None)
                 rollouts.append(trainer.rollout)
 
             # update local policies
@@ -195,21 +178,22 @@ def run(args):
         else:
             trainer.copy_network()
 
-        # evaluate local policies
-        for trainer in trainers:
-            trainer.evaluate(global_step, record=args.training_video_record)
+        if is_chef:
+            # evaluate local policies
+            for trainer in trainers:
+                trainer.evaluate(global_step, record=args.training_video_record,
+                                 context=trainer.id if args.method == 'dnc' else None)
 
-        # evaluate global policy
-        info = global_trainer.summary(step)
-        global_info.update(info)
-        ep_stats.add_all_summary_dict(summary_writer, global_info, global_step)
-        pbar.set_description(
-            '[step {}] reward {} length {} success {}'.format(
-                step, global_info['reward'], global_info['length'], global_info['success'])
-        )
+            # evaluate global policy
+            info = global_trainer.summary(step)
+            global_info.update(info)
+            ep_stats.add_all_summary_dict(summary_writer, global_info, global_step)
+            pbar.set_description(
+                '[step {}] reward {} length {} success {}'.format(
+                    step, global_info['reward'], global_info['length'], global_info['success'])
+            )
 
-    for env in envs:
-        env.close()
+    env.close()
 
 
 def main(_):
