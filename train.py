@@ -13,6 +13,7 @@ import tqdm
 import tensorflow as tf
 import numpy as np
 import gym
+from mpi4py import MPI
 
 import baselines.common.tf_util as U
 from baselines.statistics import stats
@@ -33,7 +34,7 @@ def write_info(args):
     train_cmd = 'python ' + ' '.join([sys.argv[0]] + [pipes.quote(s) for s in sys.argv[1:]])
     logger.info('\n{}\nTraining command:\n{}\n{}\n'.format('*'*80, train_cmd, '*'*80))
     with open(os.path.join(args.log_dir, "cmd.txt"), "a+") as f:
-        f.write(train_cmd)
+        f.write(train_cmd + '\n')
 
     # save argument list
     logger.info('Save argument list to {}/args.txt'.format(args.log_dir))
@@ -41,7 +42,7 @@ def write_info(args):
     args_lines += ["{}: {}".format(k, v) for k, v in args.__dict__.items()]
     args_lines = '\n'.join(args_lines)
     with open(os.path.join(args.log_dir, "args.txt"), "w") as f:
-        f.write(args_lines)
+        f.write(args_lines + '\n')
 
     # save code revision
     logger.info('Save git commit and diff to {}/git.txt'.format(args.log_dir))
@@ -74,6 +75,9 @@ def run(args):
     sess = U.single_threaded_session()
     sess.__enter__()
 
+    is_chef = (MPI.COMM_WORLD.Get_rank() == 0)
+    num_workers = MPI.COMM_WORLD.Get_size()
+
     if args.method == 'trpo':
         args.num_workers = 1
 
@@ -99,22 +103,24 @@ def run(args):
         trainers.append(trainer)
 
     # summaries
-    print_variables()
+    if is_chef:
+        if args.debug:
+            print_variables()
 
-    exp_name = '{}_{}'.format(args.env, args.method)
-    if args.prefix:
-        exp_name = '{}_{}'.format(exp_name, args.prefix)
-    args.log_dir = os.path.join(args.log_dir, exp_name)
-    logger.info("Events directory: %s", args.log_dir)
-    os.makedirs(args.log_dir, exist_ok=True)
-    write_info(args)
+        exp_name = '{}_{}'.format(args.env, args.method)
+        if args.prefix:
+            exp_name = '{}_{}'.format(exp_name, args.prefix)
+        args.log_dir = os.path.join(args.log_dir, exp_name)
+        logger.info("Events directory: %s", args.log_dir)
+        os.makedirs(args.log_dir, exist_ok=True)
+        write_info(args)
 
-    if args.is_train:
-        summary_writer = tf.summary.FileWriter(args.log_dir)
-        summary_name = global_trainer.summary_name.copy()
-        for trainer in trainers:
-            summary_name.extend(trainer.summary_name)
-        ep_stats = stats(summary_name)
+        if args.is_train:
+            summary_writer = tf.summary.FileWriter(args.log_dir)
+            summary_name = global_trainer.summary_name.copy()
+            for trainer in trainers:
+                summary_name.extend(trainer.summary_name)
+            ep_stats = stats(summary_name)
 
     # initialize model
     if args.load_model_path:
@@ -128,28 +134,24 @@ def run(args):
             U.load_state(ckpt_path, var_list)
             return ckpt_path
         load_model(args.load_model_path)
-    else:
-        sess.run(tf.global_variables_initializer())
 
     # evaluation
     if not args.is_train:
+        assert num_workers == 1
         global_trainer.evaluate(ckpt_num=None, record=args.record)
         for trainer in trainers:
             trainer.evaluate(ckpt_num=None, record=args.record, context=trainer.id)
         return
 
     # training
-    if args.threading:
-        raise NotImplementedError('Multi-threading is not implemented.')
-        coord = tf.train.Coordinator()
-
-    global_step = sess.run(trainers[0].global_step)
+    global_step = sess.run(global_trainer.global_step)
     logger.info("Starting training at step=%d", global_step)
 
     pbar = tqdm.trange(global_step, args.T, total=args.T, initial=global_step)
-    for step in pbar:
+    for epoch in pbar:
         for trainer in trainers:
             trainer.init_network()
+        step = epoch * args.R
 
         for _ in range(args.R):
             # get rollouts
@@ -162,11 +164,12 @@ def run(args):
             # update local policies
             info = {}
             for trainer in trainers:
-                _info = trainer.update(sess, rollouts)
+                _info = trainer.update(sess, rollouts, step)
                 info.update(_info)
+            if is_chef:
+                ep_stats.add_all_summary_dict(summary_writer, info, step)
 
-            global_step = sess.run(trainer.global_step)
-            ep_stats.add_all_summary_dict(summary_writer, info, global_step)
+            step += 1
 
         # update global policy using the last rollouts
         global_info = info
@@ -176,7 +179,7 @@ def run(args):
             info = global_trainer.update(step, ob, ac)
             global_info.update(info)
         else:
-            trainer.copy_network()
+            trainers[0].copy_network()
 
         if is_chef:
             # evaluate local policies

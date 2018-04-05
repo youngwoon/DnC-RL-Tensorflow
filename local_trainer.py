@@ -32,10 +32,6 @@ class LocalTrainer(object):
 
         self._ent_coeff = config.ent_coeff
 
-        # global step
-        self.global_step = tf.Variable(0, name='global_step', dtype=tf.int64, trainable=False)
-        self.update_global_step = tf.assign(self.global_step, self.global_step + 1)
-
         # set to the global network
         self._init_network = U.function([], tf.group(
             *[tf.assign(v2, v1) for v1, v2 in zip(global_policy.var_list, policy.var_list)]))
@@ -64,10 +60,13 @@ class LocalTrainer(object):
 
     @contextmanager
     def timed(self, msg):
-        print(colorize(msg, color='magenta'))
-        tstart = time.time()
-        yield
-        print(colorize("done in %.3f seconds"%(time.time() - tstart), color='magenta'))
+        if self._is_chef:
+            print(colorize(msg, color='magenta'))
+            tstart = time.time()
+            yield
+            print(colorize("done in %.3f seconds"%(time.time() - tstart), color='magenta'))
+        else:
+            yield
 
     def _all_mean(self, x):
         assert isinstance(x, np.ndarray)
@@ -263,8 +262,8 @@ class LocalTrainer(object):
         if np.allclose(g, 0):
             logger.log("Got zero gradient. not updating")
         else:
-            with self.timed("cg"):
-                stepdir = cg(fisher_vector_product, g, cg_iters=self._config.cg_iters, verbose=self._is_chef)
+            with self.timed("compute conjugate gradient"):
+                stepdir = cg(fisher_vector_product, g, cg_iters=self._config.cg_iters, verbose=False)
             assert np.isfinite(stepdir).all()
             shs = .5*stepdir.dot(fisher_vector_product(stepdir))
             lm = np.sqrt(shs / self._config.max_kl)
@@ -301,7 +300,7 @@ class LocalTrainer(object):
                 self._set_from_flat(thbefore)
             if self._num_workers > 1 and it % 20 == 0:
                 paramsums = MPI.COMM_WORLD.allgather((thnew.sum(), self._vf_adam.getflat().sum())) # list of tuples
-                assert all(np.allclose(ps, paramsums[0]) for ps in paramsums[1:])
+                assert all(np.allclose(ps, paramsums[0]) for ps in paramsums[1:]), paramsums
 
         with self.timed("updating value function"):
             for _ in range(self._config.vf_iters):

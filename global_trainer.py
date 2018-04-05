@@ -8,6 +8,7 @@ import tensorflow as tf
 import moviepy.editor as mpy
 import tqdm
 from contextlib import contextmanager
+from mpi4py import MPI
 
 from baselines import logger
 import baselines.common.tf_util as U
@@ -29,6 +30,8 @@ class GlobalTrainer(object):
         self._config = config
         self._policy = policy
 
+        self._is_chef = (MPI.COMM_WORLD.Get_rank() == 0)
+
         # global step
         self.global_step = tf.Variable(0, name='global_step', dtype=tf.int64, trainable=False)
         self._update_global_step = tf.assign(self.global_step, self.global_step + 1)
@@ -46,8 +49,6 @@ class GlobalTrainer(object):
         # input placeholders
         ac = pi.pdtype.sample_placeholder([None])
         var_list = [v for v in pi.get_trainable_variables() if 'vf' not in v.name]
-        print('global trainable variables:')
-        print(var_list)
         self._adam = MpiAdam(var_list)
         fetch_dict = {'loss': tf.reduce_mean(pi.pd.neglogp(ac))}
         self.summary_name += ['global/' + key for key in fetch_dict.keys()]
@@ -59,13 +60,18 @@ class GlobalTrainer(object):
         # initialize and sync
         U.initialize()
         self._adam.sync()
+        if config.debug:
+            logger.log("[worker: {} global] Init vf param sum".format(MPI.COMM_WORLD.Get_rank()), self._adam.getflat().sum())
 
     @contextmanager
     def timed(self, msg):
-        print(colorize(msg, color='magenta'))
-        tstart = time.time()
-        yield
-        print(colorize("done in %.3f seconds"%(time.time() - tstart), color='magenta'))
+        if self._is_chef:
+            print(colorize(msg, color='magenta'))
+            tstart = time.time()
+            yield
+            print(colorize("done in %.3f seconds"%(time.time() - tstart), color='magenta'))
+        else:
+            yield
 
     def update(self, step, ob, ac):
         info = defaultdict(list)
