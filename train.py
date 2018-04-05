@@ -184,13 +184,13 @@ def run(args):
         if is_chef:
             # evaluate local policies
             for trainer in trainers:
-                trainer.evaluate(global_step, record=args.training_video_record,
+                trainer.evaluate(step, record=args.training_video_record,
                                  context=trainer.id if args.method == 'dnc' else None)
 
             # evaluate global policy
             info = global_trainer.summary(step)
             global_info.update(info)
-            ep_stats.add_all_summary_dict(summary_writer, global_info, global_step)
+            ep_stats.add_all_summary_dict(summary_writer, global_info, step)
             pbar.set_description(
                 '[step {}] reward {} length {} success {}'.format(
                     step, global_info['reward'], global_info['length'], global_info['success'])
