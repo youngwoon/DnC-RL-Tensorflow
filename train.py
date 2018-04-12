@@ -167,7 +167,11 @@ def run(args):
                 _info = trainer.update(sess, rollouts, step)
                 info.update(_info)
             if is_chef:
-                ep_stats.add_all_summary_dict(summary_writer, info, step)
+                ep_stats.add_all_summary_dict(summary_writer, info, step * args.num_workers)
+
+            # update ob running average
+            if args.obs_norm:
+                trainers[0].update_ob_rms(rollouts)
 
             step += 1
 

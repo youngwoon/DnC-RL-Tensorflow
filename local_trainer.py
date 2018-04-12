@@ -227,6 +227,13 @@ class LocalTrainer(object):
         logger.log('[{}] Episode Length: {}'.format(self._name, np.mean(ep_lens)))
         logger.log('[{}] Episode Rewards: {}'.format(self._name, np.mean(ep_rets)))
 
+    def update_ob_rms(self, rollouts):
+        assert self._config.obs_norm
+        ob = np.concatenate([rollout['ob'] for rollout in rollouts])
+        ob_dict = self._env.get_ob_dict(ob)
+        for ob_name in self._policy.ob_type:
+            self._policy.ob_rms[ob_name].update(ob_dict[ob_name])
+
     def _update_policy(self, rollouts, it):
         pi = self._policy
         seg = rollouts[self.id]
@@ -236,16 +243,11 @@ class LocalTrainer(object):
         atarg = (atarg - atarg.mean()) / atarg.std()
         info['adv'] = np.mean(atarg)
 
-        ob_dict = self._env.get_ob_dict(ob)
-        if self._config.obs_norm:
-            for ob_name in pi.ob_type:
-                pi.ob_rms[ob_name].update(ob_dict[ob_name])
-
         other_ob_list = []
         for i, other_pi in enumerate(self._pis):
             other_ob_list.extend(other_pi.get_ob_list(rollouts[i]["ob"]))
 
-        ob_list = pi.get_ob_list(ob_dict)
+        ob_list = pi.get_ob_list(ob)
         args = ob_list * self._config.num_workers + \
             other_ob_list * 2 + ob_list + [ac, atarg]
         fvpargs = [arr[::5] for arr in args]
