@@ -16,7 +16,7 @@ class JacoPickEnv(JacoEnv):
 
         # state
         self._pick_count = 0
-        self._init_box_pos = np.asarray([0.5, 0.0, 0.03])
+        self._init_box_pos = np.asarray([0.5, 0.0, 0.04])
 
         # env info
         self.reward_type += ["pick_reward", "success"]
@@ -39,8 +39,8 @@ class JacoPickEnv(JacoEnv):
 
         dist_hand = self._get_distance_hand('box')
         box_z = self._get_box_pos()[2]
-        in_air = box_z > 0.06
-        on_ground = box_z < 0.06
+        in_air = box_z > 0.08
+        on_ground = box_z < 0.08
         in_hand = dist_hand < 0.08
 
         # pick
@@ -53,7 +53,7 @@ class JacoPickEnv(JacoEnv):
             done = True
 
         # success
-        if self._pick_count == 30:
+        if self._pick_count == 50:
             success = True
             done = True
             print('success')
@@ -77,7 +77,8 @@ class JacoPickEnv(JacoEnv):
         qvel = self.model.data.qvel.ravel().copy()
 
         # set box's initial position
-        sx, sy, ex, ey = -0.15, -0.15, 0.15, 0.15
+        #sx, sy, ex, ey = -0.15, -0.15, 0.15, 0.15
+        sx, sy, ex, ey = -0.1, -0.1, 0.1, 0.1
         if self._context == 0:
             sx, sy = 0, 0
         elif self._context == 1:
@@ -90,7 +91,7 @@ class JacoPickEnv(JacoEnv):
         self._init_box_pos = np.asarray(
             [0.5 + np.random.uniform(sx, ex) * self._config["random_box"],
              0.1 + np.random.uniform(sy, ey) * self._config["random_box"],
-             0.03])
+             0.04])
         qpos[9:12] = self._init_box_pos
 
         self.set_state(qpos, qvel)

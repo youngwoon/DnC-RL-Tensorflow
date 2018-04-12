@@ -129,9 +129,9 @@
         </body>
 
         <!-- box -->
-        <body name="box" pos="0.55 0.25 .03" euler="0 0 0">
+        <body name="box" pos="0.55 0.25 .04" euler="0 0 0">
             <inertial pos="0 0 0" mass="0.1"/>
-            <geom name="box" pos="0 0 0" contype="1" conaffinity="1" rgba="0.1 0.3 0.7 1" size=".03 .03 .03" type="box"/>
+            <geom name="box" pos="0 0 0" contype="1" conaffinity="1" rgba="0.1 0.3 0.7 1" size=".04 .04 .04" type="box"/>
             <joint type="free" armature="0" damping="0" limited="false" stiffness="0"/>
         </body>
         <!--
