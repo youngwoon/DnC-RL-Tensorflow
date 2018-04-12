@@ -8,7 +8,7 @@ This project is implemented by [Youngwoon Lee](https://github.com/youngwoon) and
 
 This repo is a [Tensorflow](https://www.tensorflow.org/) implementation of DnC RL on a manipulation task: [Divide-and-Conquer Reinforcement Learning](https://openreview.net/forum?id=rJwelMbR-).
 
-Standard model-free RL algorithms are not performing well in environments with diverse initial states due to the high variance of gradient estimation. This paper tackles this problem by employing the divide-and-conquer strategy on the initial state space; partitioning the initial state space into several regions (*contexts* in this paper), solving each region using TRPO, and distilling solutions into a single central policy. 
+Standard model-free RL algorithms are not performing well in environments with diverse initial states due to the high variance of gradient estimation. This paper tackles this problem by employing the divide-and-conquer strategy on the initial state space; partitioning the initial state space into several regions (*contexts* in this paper), solving each region using TRPO, and distilling solutions into a single central policy.
 
 The final goal is to maximize expected reward while minimizing divergence between each local policy and the central policy. It seems similar to the [Distral](https://arxiv.org/abs/1707.04175) which tries to maintain all local polices similar to the shared policy using KL divergence penalty. However, this paper targets to solve a complex task by splitting it while Distral is focusing on transferring knowledge across different tasks.
 
@@ -43,7 +43,7 @@ Every *R* (100) updates of the local policies, the central policy is trained to 
 
 - Install dependencies using PIP
 ```bash
-$ pip install tensorflow gym mujoco-py==0.5.7 scipy pillow tqdm opencv-python matplotlib mpi4py moviepy 
+$ pip install tensorflow gym mujoco-py==0.5.7 scipy pillow tqdm opencv-python matplotlib mpi4py moviepy
 ```
 
 ## Usage
@@ -51,7 +51,7 @@ $ pip install tensorflow gym mujoco-py==0.5.7 scipy pillow tqdm opencv-python ma
 - Execute the following command to train a model:
 
 ```bash
-$ python train.py --env JacoPick-v1 --method dnc 
+$ python train.py --env JacoPick-v1 --method dnc
 ```
 
 - To run a vanilla TRPO, set `--method` to `trpo`; otherwise, it will train a policy with *DnC*.
@@ -75,6 +75,12 @@ $ tensorboard --logdir=./log
 | ![jaco_pick_1](assets/jaco_pick_1.gif) | ![jaco_pick_2](assets/jaco_pick_2.gif) | ![jaco_pick_3](assets/jaco_pick_3.gif) | ![jaco_pick_4](assets/jaco_pick_4.gif) |
 | ![jaco_pick_1](assets/jaco_pick_1.gif) | ![jaco_pick_2](assets/jaco_pick_2.gif) | ![jaco_pick_3](assets/jaco_pick_3.gif) | ![jaco_pick_4](assets/jaco_pick_4.gif) |
 
+
+- *TRPO without input normalization does not perform well.*
+
+- *TRPO with input normalization performs comparable to DnC.*
+
+- *DnC is hard to apply input normalization due to each context has different input distribution.*
 
 
 ![training-pick.jpg](assets/training_pick.png)
@@ -110,10 +116,13 @@ $ python
 ```bash
 # install packages
 $ sudo apt-get install xserver-xorg libglu1-mesa-dev freeglut3-dev mesa-common-dev libxmu-dev libxi-dev
+
 # configure nvidia-x
 $ sudo nvidia-xconfig -a --use-display-device=None --virtual=1280x1024
+
 # run virtual screen
 $ sudo /usr/bin/X :0 &
+
 # run program with DISPLAY=:0
 $ python train.py --env JacoPick-v1 --method dnc --display 0
 ```
