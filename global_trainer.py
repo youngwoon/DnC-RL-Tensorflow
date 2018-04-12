@@ -37,7 +37,7 @@ class GlobalTrainer(object):
         self._update_global_step = tf.assign(self.global_step, self.global_step + 1)
 
         # tensorboard summary
-        self.summary_name = []
+        self.summary_name = ['global/length', 'global/reward', 'global/success']
 
         # build loss/optimizers
         self._build_distillation()
@@ -152,4 +152,6 @@ class GlobalTrainer(object):
 
         logger.log('[{}] Episode Length: {}'.format(self._name, np.mean(ep_lens)))
         logger.log('[{}] Episode Rewards: {}'.format(self._name, np.mean(ep_rets)))
-        return {'length': np.mean(ep_lens), 'reward': np.mean(ep_rets), 'success': np.mean(ep_success)}
+        return {'global/length': np.mean(ep_lens),
+                'global/reward': np.mean(ep_rets),
+                'global/success': np.mean(ep_success)}

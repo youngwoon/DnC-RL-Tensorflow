@@ -190,10 +190,12 @@ def run(args):
             # evaluate global policy
             info = global_trainer.summary(step)
             global_info.update(info)
-            ep_stats.add_all_summary_dict(summary_writer, global_info, step)
+            ep_stats.add_all_summary_dict(summary_writer, global_info, step * args.num_workers)
             pbar.set_description(
                 '[step {}] reward {} length {} success {}'.format(
-                    step, global_info['reward'], global_info['length'], global_info['success'])
+                    step, global_info['global/reward'],
+                    global_info['global/length'],
+                    global_info['global/success'])
             )
 
     env.close()
