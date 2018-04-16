@@ -15,7 +15,7 @@ The final goal is to maximize expected reward while minimizing divergence betwee
 The first step is training local policies each of which is responsible for a sub-region of the initial state space. A local policy is optimized to minimize both the TRPO surrogate loss and KL divergence to the other policies. The KL divergence penalties help a local policy to mimic the other policies on other contexts and encourage local policies to be closer to each other which makes the training of the central policy easier. All local policies are trained together since an update of a single local policy requires trajectories from other policies to compute the pairwise KL divergence penalties. The loss function for a local policy *pi_i* is:
 
 <p align="center">
-    <img src="assets/local_loss.png" width=500>
+    <img src="assets/local_loss.png" width=600>
 </p>
 
 Every *R* (100) updates of the local policies, the central policy is trained to mimic the corresponding local policy's behaviour for each context. Through this distillation process, the central policy is able to cover all possible initial states. It can be easily optimized by maximizing log-likelihood as following:
@@ -74,15 +74,16 @@ $ tensorboard --logdir=./log
 
 ## Results
 
-### Picking
+### Videos
 
 |                Context 1               |                Context 2               |                Context 3               |                Context 4               |
 | :------------------------------------: | :------------------------------------: | :------------------------------------: | :------------------------------------: |
 | ![jaco_pick_1](assets/jaco_pick_1.gif) | ![jaco_pick_2](assets/jaco_pick_2.gif) | ![jaco_pick_3](assets/jaco_pick_3.gif) | ![jaco_pick_4](assets/jaco_pick_4.gif) |
 
+### Training curves
 <p align="center">
-    <img src="assets/reward.png" width=200>
-    <img src="assets/success.png" width=200>
+    <img src="assets/reward.png" width=400>
+    <img src="assets/success.png" width=400>
 </p>
 
 
