@@ -54,6 +54,12 @@ $ pip install tensorflow gym mujoco-py==0.5.7 scipy pillow tqdm opencv-python ma
 $ python train.py --env JacoPick-v1 --method dnc
 ```
 
+- To evaluate the trained model:
+
+```bash
+$ python train.py --env JacoPick-v1 --method dnc --is_train False --load_model_path log/JacoPick-v1_dnc/
+```
+
 - To run a vanilla TRPO, set `--method` to `trpo`; otherwise, it will train a policy with *DnC*.
   During training, evaluation and video generation is performed every `R` iterations. The result videos will be saved to `./log/JacoPick-v1_dnc/video`.
 - Available environment: JacoPick-v1
@@ -74,8 +80,11 @@ $ tensorboard --logdir=./log
 | :------------------------------------: | :------------------------------------: | :------------------------------------: | :------------------------------------: |
 | ![jaco_pick_1](assets/jaco_pick_1.gif) | ![jaco_pick_2](assets/jaco_pick_2.gif) | ![jaco_pick_3](assets/jaco_pick_3.gif) | ![jaco_pick_4](assets/jaco_pick_4.gif) |
 
-![pick_reward.jpg](assets/reward.png)
-![pick_success.jpg](assets/success.png)
+<p align="center">
+    <img src="assets/reward.png" width=200>
+    <img src="assets/success.png" width=200>
+</p>
+
 
 - *Both DnC and TRPO without input normalization do not perform well.*
 
