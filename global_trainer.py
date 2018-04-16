@@ -46,22 +46,44 @@ class GlobalTrainer(object):
         config = self._config
         pi = self._policy
 
-        # input placeholders
+        self._global_norm = U.function(
+            [], tf.global_norm([tf.cast(var, tf.float32) for var in pi.get_variables()]))
+
+        # policy update
         ac = pi.pdtype.sample_placeholder([None])
-        var_list = [v for v in pi.get_trainable_variables() if 'vf' not in v.name]
-        self._adam = MpiAdam(var_list)
-        fetch_dict = {'loss': tf.reduce_mean(pi.pd.neglogp(ac))}
-        self.summary_name += ['global/' + key for key in fetch_dict.keys()]
-        self.summary_name += ['global/grad_norm', 'global/global_norm']
-        fetch_dict['g'] = U.flatgrad(fetch_dict['loss'], var_list, clip_norm=config.global_max_grad_norm)
-        self._loss = U.function([ac] + pi.ob, fetch_dict)
-        self._global_norm = U.function([], tf.global_norm([tf.cast(var, tf.float32) for var in pi.get_variables()]))
+        pol_var_list = [v for v in pi.get_trainable_variables() if 'pol' in v.name]
+        self._pol_adam = MpiAdam(pol_var_list)
+        pol_loss = tf.reduce_mean(pi.pd.neglogp(ac))
+        #pol_loss = tf.reduce_mean(tf.square(pi.pd.sample() - ac))
+        fetch_dict = {
+            'loss': pol_loss,
+            'g': U.flatgrad(pol_loss, pol_var_list,
+                            clip_norm=config.global_max_grad_norm)
+        }
+        self._pol_loss = U.function([ac] + pi.ob, fetch_dict)
+        self.summary_name += ['global/loss', 'global/grad_norm', 'global/global_norm']
+
+        # value update
+        if config.global_vf:
+            ret = tf.placeholder(dtype=tf.float32, shape=[None], name='return')
+            vf_var_list = [v for v in pi.get_trainable_variables() if 'vf' in v.name]
+            self._vf_adam = MpiAdam(vf_var_list)
+            vf_loss = tf.reduce_mean(tf.square(pi.vpred - ret))
+            fetch_dict = {
+                'vf_loss': vf_loss,
+                'vf_g': U.flatgrad(vf_loss, vf_var_list,
+                                   clip_norm=config.global_max_grad_norm)
+            }
+            self._vf_loss = U.function([ret] + pi.ob, fetch_dict)
+            self.summary_name += ['global/vf_loss', 'global/vf_grad_norm']
 
         # initialize and sync
         U.initialize()
-        self._adam.sync()
+        self._pol_adam.sync()
+        if config.global_vf:
+            self._vf_adam.sync()
         if config.debug:
-            logger.log("[worker: {} global] Init vf param sum".format(MPI.COMM_WORLD.Get_rank()), self._adam.getflat().sum())
+            logger.log("[worker: {} global] Init param sum".format(MPI.COMM_WORLD.Get_rank()), self._adam.getflat().sum())
 
     @contextmanager
     def timed(self, msg):
@@ -73,7 +95,7 @@ class GlobalTrainer(object):
         else:
             yield
 
-    def update(self, step, ob, ac):
+    def update(self, step, ob, ac, ret=None):
         info = defaultdict(list)
         config = self._config
         sess = U.get_session()
@@ -83,23 +105,34 @@ class GlobalTrainer(object):
 
         pi = self._policy
         ob_dict = self._env.get_ob_dict(ob)
-        if self._config.obs_norm:
+        if self._config.obs_norm == 'learn':
             for ob_name in pi.ob_type:
                 pi.ob_rms[ob_name].update(ob_dict[ob_name])
 
         with self.timed("update global network"):
             for _ in range(self._config.global_iters):
+                # policy network
                 for (mb_ob, mb_ac) in dataset.iterbatches(
                         (ob, ac), include_final_partial_batch=False,
                         batch_size=self._config.global_batch_size):
                     ob_list = pi.get_ob_list(mb_ob)
-                    fetched = self._loss(mb_ac, *ob_list)
+                    fetched = self._pol_loss(mb_ac, *ob_list)
                     loss, g = fetched['loss'], fetched['g']
-                    self._adam.update(g, self._config.global_stepsize)
-
+                    self._pol_adam.update(g, self._config.global_stepsize)
                     info['global/loss'].append(np.mean(loss))
                     info['global/grad_norm'].append(np.linalg.norm(g))
 
+                if config.global_vf:
+                    # value network
+                    for (mb_ob, mb_ret) in dataset.iterbatches(
+                            (ob, ret), include_final_partial_batch=False,
+                            batch_size=self._config.global_batch_size):
+                        ob_list = pi.get_ob_list(mb_ob)
+                        fetched = self._vf_loss(mb_ret, *ob_list)
+                        vf_loss, vf_g = fetched['vf_loss'], fetched['vf_g']
+                        self._vf_adam.update(vf_g, self._config.global_stepsize)
+                        info['global/vf_loss'].append(np.mean(vf_loss))
+                        info['global/vf_grad_norm'].append(np.linalg.norm(vf_g))
         for key, value in info.items():
             info[key] = np.mean(value)
         info['global/global_norm'] = self._global_norm()

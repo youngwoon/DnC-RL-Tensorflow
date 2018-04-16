@@ -32,7 +32,7 @@ class MlpPolicy(object):
         self._ac_space = env.unwrapped.action_space
 
         # obs normalization
-        if self._config.obs_norm:
+        if self._config.obs_norm == 'learn':
             self.ob_rms = {}
             for ob_name in self.ob_type:
                 with tf.variable_scope("ob_rms_{}".format(ob_name), reuse=tf.AUTO_REUSE):
@@ -41,7 +41,10 @@ class MlpPolicy(object):
         with tf.variable_scope(self.name, reuse=tf.AUTO_REUSE):
             self.scope = tf.get_variable_scope().name
             self._build()
-            self.var_list = [v for v in self.get_variables() if 'vf' not in v.name]
+            if config.global_vf:
+                self.var_list = self.get_variables()
+            else:
+                self.var_list = [v for v in self.get_variables() if 'vf' not in v.name]
 
     def _build(self):
         ac_space = self._ac_space
@@ -66,7 +69,7 @@ class MlpPolicy(object):
                     shape=[None] + self._ob_shape[ob_name])
 
             # obs normalization
-            if self._config.obs_norm:
+            if self._config.obs_norm == 'learn':
                 obz = [(_ob[ob_name] - self.ob_rms[ob_name].mean) / self.ob_rms[ob_name].std
                     for ob_name in self.ob_type]
             else:
@@ -103,7 +106,7 @@ class MlpPolicy(object):
                                            kernel_initializer=U.normc_initializer(0.01))
                     logstd = tf.get_variable(name="logstd",
                                              shape=[1, pdtype.param_shape()[0]//2],
-                                             initializer=tf.zeros_initializer())
+                                             initializer=tf.ones_initializer())
                     pdparam = tf.concat([mean, mean * 0.0 + logstd], axis=1)
                 else:
                     pdparam = tf.layers.dense(last_out, pdtype.param_shape()[0], name="final",

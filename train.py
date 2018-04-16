@@ -4,7 +4,6 @@ sys.path.insert(0, 'gym')
 import os
 import logging
 import signal
-import threading
 import pipes
 import time
 from six.moves import shlex_quote
@@ -79,10 +78,14 @@ def run(args):
     num_workers = MPI.COMM_WORLD.Get_size()
 
     if args.method == 'trpo':
+        args.num_rollouts *= args.num_workers
         args.num_workers = 1
 
     # setting envs and networks
     env = gym.make(args.env)
+    if args.obs_norm == 'predefined':
+        env.unwrapped.set_norm(True)
+
     global_network = MlpPolicy(0, 'global', env, args)
     global_runner = Runner(env, global_network, args)
     global_trainer = GlobalTrainer('global', env, global_runner, global_network, args)
@@ -132,7 +135,6 @@ def run(args):
                 ckpt_path = load_model_path
             logger.info("Load checkpoint: %s", ckpt_path)
             U.load_state(ckpt_path, var_list)
-            return ckpt_path
         load_model(args.load_model_path)
 
     # evaluation
@@ -167,10 +169,10 @@ def run(args):
                 _info = trainer.update(sess, rollouts, step)
                 info.update(_info)
             if is_chef:
-                ep_stats.add_all_summary_dict(summary_writer, info, step * args.num_workers)
+                ep_stats.add_all_summary_dict(summary_writer, info, step)
 
             # update ob running average
-            if args.obs_norm:
+            if args.obs_norm == 'learn':
                 trainers[0].update_ob_rms(rollouts)
 
             step += 1
@@ -180,7 +182,8 @@ def run(args):
         if args.method == 'dnc':
             ob = np.concatenate([rollout['ob'] for rollout in rollouts])
             ac = np.concatenate([rollout['ac'] for rollout in rollouts])
-            info = global_trainer.update(step, ob, ac)
+            ret = np.concatenate([rollout['tdlamret'] for rollout in rollouts])
+            info = global_trainer.update(step, ob, ac, ret)
             global_info.update(info)
         else:
             trainers[0].copy_network()
@@ -194,7 +197,7 @@ def run(args):
             # evaluate global policy
             info = global_trainer.summary(step)
             global_info.update(info)
-            ep_stats.add_all_summary_dict(summary_writer, global_info, step * args.num_workers)
+            ep_stats.add_all_summary_dict(summary_writer, global_info, step)
             pbar.set_description(
                 '[step {}] reward {} length {} success {}'.format(
                     step, global_info['global/reward'],

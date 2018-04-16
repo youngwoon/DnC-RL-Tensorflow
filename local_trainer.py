@@ -118,7 +118,6 @@ class LocalTrainer(object):
                 pairwise_divergence.append(tf.reduce_mean(pi.pds[self.id].kl(other_pi.pds[self.id])))
                 pairwise_divergence.append(tf.reduce_mean(other_pi.pds[i].kl(pi.pds[i])))
         pol_divergence = self._config.divergence_coeff * tf.reduce_mean(pairwise_divergence)
-        pol_divergence /= self._num_workers * self._num_workers
 
         pol_loss = pol_surr + pol_entpen + pol_divergence
         pol_losses = {'pol_loss': pol_loss,
@@ -228,7 +227,7 @@ class LocalTrainer(object):
         logger.log('[{}] Episode Rewards: {}'.format(self._name, np.mean(ep_rets)))
 
     def update_ob_rms(self, rollouts):
-        assert self._config.obs_norm
+        assert self._config.obs_norm == 'learn'
         ob = np.concatenate([rollout['ob'] for rollout in rollouts])
         ob_dict = self._env.get_ob_dict(ob)
         for ob_name in self._policy.ob_type:
@@ -240,7 +239,7 @@ class LocalTrainer(object):
         info = defaultdict(list)
 
         ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
-        atarg = (atarg - atarg.mean()) / atarg.std()
+        #atarg = (atarg - atarg.mean()) / atarg.std()
         info['adv'] = np.mean(atarg)
 
         other_ob_list = []

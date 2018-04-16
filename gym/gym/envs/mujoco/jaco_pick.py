@@ -13,6 +13,7 @@ class JacoPickEnv(JacoEnv):
             "random_box": 1,
         })
         self._context = None
+        self._norm = False
 
         # state
         self._pick_count = 0
@@ -24,6 +25,9 @@ class JacoPickEnv(JacoEnv):
 
         mujoco_env.MujocoEnv.__init__(self, "jaco_pick.xml", 4)
         utils.EzPickle.__init__(self)
+
+    def set_norm(self, norm):
+        self._norm = norm
 
     def set_context(self, context):
         self._context = context
@@ -67,7 +71,14 @@ class JacoPickEnv(JacoEnv):
     def _get_obs(self):
         qpos = self.model.data.qpos
         qvel = self.model.data.qvel
-        return np.concatenate([qpos, np.clip(qvel, -10, 10)]).ravel()
+        obs = np.concatenate([qpos, qvel]).ravel()
+        if self._norm:
+            std = [5, 10, 20, 50, 100, 150, 0.2, 0.2,
+                   0.2, 1, 0.2, 1, 1, 0.2, 0.2, 0.2,
+                   50, 50, 70, 70, 100, 100, 50, 50,
+                   50, 5, 2, 10, 50, 50, 50]
+            obs /= std
+        return obs
 
     def get_ob_dict(self, ob):
         return {'joint': ob}
