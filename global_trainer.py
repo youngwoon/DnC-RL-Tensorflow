@@ -9,6 +9,7 @@ import moviepy.editor as mpy
 import tqdm
 from contextlib import contextmanager
 from mpi4py import MPI
+import imageio
 
 from baselines import logger
 import baselines.common.tf_util as U
@@ -170,18 +171,22 @@ class GlobalTrainer(object):
             # Video recording
             if record:
                 visual_obs = ep_traj["visual_ob"]
-                video_name = '{}{}_{}{}.mp4'.format(config.video_prefix or '', self._name,
-                    '' if ckpt_num is None else 'ckpt_{}_'.format(ckpt_num), _)
+                video_name = '{}{}_{}{}.{}'.format(config.video_prefix or '', self._name,
+                    '' if ckpt_num is None else 'ckpt_{}_'.format(ckpt_num), _, config.video_format)
                 video_path = osp.join(record_dir, video_name)
-                fps = 60.
 
-                def f(t):
-                    frame_length = len(visual_obs)
-                    new_fps = 1./(1./fps + 1./frame_length)
-                    idx = min(int(t*new_fps), frame_length-1)
-                    return visual_obs[idx]
-                video = mpy.VideoClip(f, duration=len(visual_obs)/fps+2)
-                video.write_videofile(video_path, fps, verbose=False)
+                if config.video_format == 'mp4':
+                    fps = 60.
+
+                    def f(t):
+                        frame_length = len(visual_obs)
+                        new_fps = 1./(1./fps + 1./frame_length)
+                        idx = min(int(t*new_fps), frame_length-1)
+                        return visual_obs[idx]
+                    video = mpy.VideoClip(f, duration=len(visual_obs)/fps+2)
+                    video.write_videofile(video_path, fps, verbose=False)
+                elif config.video_format == 'gif':
+                    imageio.mimsave(video_path, visual_obs, fps=100)
 
         logger.log('[{}] Episode Length: {}'.format(self._name, np.mean(ep_lens)))
         logger.log('[{}] Episode Rewards: {}'.format(self._name, np.mean(ep_rets)))
