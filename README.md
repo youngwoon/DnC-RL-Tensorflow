@@ -73,17 +73,15 @@ $ tensorboard --logdir=./log
 |                Context 1               |                Context 2               |                Context 3               |                Context 4               |
 | :------------------------------------: | :------------------------------------: | :------------------------------------: | :------------------------------------: |
 | ![jaco_pick_1](assets/jaco_pick_1.gif) | ![jaco_pick_2](assets/jaco_pick_2.gif) | ![jaco_pick_3](assets/jaco_pick_3.gif) | ![jaco_pick_4](assets/jaco_pick_4.gif) |
-| ![jaco_pick_1](assets/jaco_pick_1.gif) | ![jaco_pick_2](assets/jaco_pick_2.gif) | ![jaco_pick_3](assets/jaco_pick_3.gif) | ![jaco_pick_4](assets/jaco_pick_4.gif) |
 
+![pick_reward.jpg](assets/reward.png)
+![pick_success.jpg](assets/success.png)
 
-- *TRPO without input normalization does not perform well.*
+- *Both DnC and TRPO without input normalization do not perform well.*
 
-- *TRPO with input normalization performs comparable to DnC.*
+- *TRPO with input normalization outperforms DnC.*
 
-- *DnC is hard to apply input normalization due to each context has different input distribution.*
-
-
-![training-pick.jpg](assets/training_pick.png)
+- *If the penalty parameter of the `pairwise KL-divergence penalties` is large (> 1e-3), the penalty will be easily exploded.*
 
 
 ## References
