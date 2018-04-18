@@ -73,7 +73,6 @@ $ tensorboard --logdir=./log
 | :------------------------------------: | :------------------------------------: | :------------------------------------: | :------------------------------------: |
 | ![jaco_pick_1](assets/jaco_pick_1.gif) | ![jaco_pick_2](assets/jaco_pick_2.gif) | ![jaco_pick_3](assets/jaco_pick_3.gif) | ![jaco_pick_4](assets/jaco_pick_4.gif) |
 
-<<<<<<< Updated upstream
 ### Training curves
 <p align="center">
     <img src="assets/reward.png" width=400>
