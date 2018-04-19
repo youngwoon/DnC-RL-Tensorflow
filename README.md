@@ -40,18 +40,22 @@ Every *R* (100) updates of the local policies, the central policy is trained to 
 - [mpi4py](http://mpi4py.scipy.org/docs/)
 - [moviepy](http://mpi4py.scipy.org/docs/)
 
-Install dependencies using PIP
+Install dependencies using PIP:
 ```bash
 $ pip install tensorflow gym mujoco-py==0.5.7 scipy pillow tqdm opencv-python matplotlib mpi4py moviepy
 ```
+In addition to python packages, installing [Mujoco 1.3.1](http://www.mujoco.org/) is required to run this code.
 
 ## Usage
 - Execute the following command to train a model:
 ```bash
-$ python train.py --env JacoPick-v1 --method dnc
+$ python train.py --env JacoPick-v1 --method dnc --num_rollouts 20000
+```
+- Parallelization with MPI is available. Number of workers can be specified by `mpirun -np [# workers]` and `--num_rollouts` should be adjusted according to `-np` for a fair comparison.
+```bash
+$ mpirun -np 4 python train.py --env JacoPick-v1 --method dnc --num_rollouts 5000
 ```
 - To evaluate the trained model:
-
 ```bash
 $ python train.py --env JacoPick-v1 --method dnc --is_train False --load_model_path log/JacoPick-v1_dnc/
 ```
@@ -80,6 +84,7 @@ $ tensorboard --logdir=./log
 </p>
 
 
+- 1,000 updates take 14 hours with 4 workers on Intel Xeon E5-2640 v4 (2.40 GHz).
 - *Both DnC and TRPO without input normalization do not perform well.*
 - *TRPO with input normalization outperforms DnC.*
 - *If the penalty parameter of the `pairwise KL-divergence penalties` is large (> 1e-3), the penalty will be easily exploded.*
@@ -127,4 +132,4 @@ $ python train.py --env JacoPick-v1 --method dnc --display 0
 ```
 
 ## Author
-Youngwoon Lee / [@youngwoon](https://github.com/youngwoon) @ [Joseph Lim's research lab](https://github.com/gitlimlab) @ USC
+Youngwoon Lee / [@youngwoon](https://github.com/youngwoon) @[Joseph Lim's research lab](https://github.com/gitlimlab) @USC
