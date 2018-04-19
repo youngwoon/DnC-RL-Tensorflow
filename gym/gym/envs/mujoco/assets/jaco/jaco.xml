@@ -125,8 +125,8 @@
                 </body>
             </body>
         </body>
-        <body name="box" pos= ".2 0 0.03" euler="0 0 0">
-            <geom name="box" rgba="0.9 0.9 0.9 1" size=".03 .03 .03" density='25' contype="1" conaffinity="1" type="box" />
+        <body name="box" pos= ".2 0 0.04" euler="0 0 0">
+            <geom name="box" rgba="0.9 0.9 0.9 1" size=".04 .04 .04" density='25' contype="1" conaffinity="1" type="box" />
         </body>
     </worldbody>
 	

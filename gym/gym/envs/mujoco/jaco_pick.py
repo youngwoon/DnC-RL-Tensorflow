@@ -10,14 +10,14 @@ class JacoPickEnv(JacoEnv):
         super().__init__(with_rot=with_rot)
         self._config.update({
             "pick_reward": 10,
-            "random_box": 1,
+            "random_box": 0.1,
         })
         self._context = None
         self._norm = False
 
         # state
         self._pick_count = 0
-        self._init_box_pos = np.asarray([0.5, 0.0, 0.03])
+        self._init_box_pos = np.asarray([0.5, 0.0, 0.04])
 
         # env info
         self.reward_type += ["pick_reward", "success"]
@@ -88,8 +88,7 @@ class JacoPickEnv(JacoEnv):
         qvel = self.model.data.qvel.ravel().copy()
 
         # set box's initial position
-        sx, sy, ex, ey = -0.15, -0.15, 0.15, 0.15
-        #sx, sy, ex, ey = -0.1, -0.1, 0.1, 0.1
+        sx, sy, ex, ey = -1, -1, 1, 1
         if self._context == 0:
             sx, sy = 0, 0
         elif self._context == 1:
@@ -102,7 +101,7 @@ class JacoPickEnv(JacoEnv):
         self._init_box_pos = np.asarray(
             [0.5 + np.random.uniform(sx, ex) * self._config["random_box"],
              0.1 + np.random.uniform(sy, ey) * self._config["random_box"],
-             0.03])
+             0.04])
         qpos[9:12] = self._init_box_pos
 
         self.set_state(qpos, qvel)
