@@ -106,7 +106,7 @@ class MlpPolicy(object):
                                            kernel_initializer=U.normc_initializer(0.01))
                     logstd = tf.get_variable(name="logstd",
                                              shape=[1, pdtype.param_shape()[0]//2],
-                                             initializer=tf.ones_initializer())
+                                             initializer=tf.zeros_initializer())
                     pdparam = tf.concat([mean, mean * 0.0 + logstd], axis=1)
                 else:
                     pdparam = tf.layers.dense(last_out, pdtype.param_shape()[0], name="final",

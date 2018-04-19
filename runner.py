@@ -9,6 +9,8 @@ def render_frame(env, length, ret, sub_name, render, record=False):
         return None
     raw_img = env.unwrapped.get_visual_observation()
     raw_img = np.asarray(raw_img, dtype=np.uint8).copy()
+    if np.sum(raw_img) == 0:
+        print('Warning: Mujoco render a blank screen. Please check settings related to display.')
     cv2.putText(raw_img, '{:4d} {:.2f} {}'.format(length, ret, sub_name),
                 (10, 50), cv2.FONT_HERSHEY_SIMPLEX,
                 0.7, (255, 128, 128), 2, cv2.LINE_AA)

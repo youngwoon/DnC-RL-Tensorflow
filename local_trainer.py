@@ -244,7 +244,7 @@ class LocalTrainer(object):
         info = defaultdict(list)
 
         ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
-        #atarg = (atarg - atarg.mean()) / atarg.std()
+        atarg = (atarg - atarg.mean()) / atarg.std()
         info['adv'] = np.mean(atarg)
 
         other_ob_list = []
