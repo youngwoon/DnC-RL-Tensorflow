@@ -78,8 +78,8 @@ def run(args):
     num_workers = MPI.COMM_WORLD.Get_size()
 
     if args.method == 'trpo':
-        args.num_rollouts *= args.num_workers
-        args.num_workers = 1
+        args.num_rollouts *= args.num_contexts
+        args.num_contexts = 1
 
     # setting envs and networks
     env = gym.make(args.env)
@@ -93,13 +93,13 @@ def run(args):
     networks = []
     old_networks = []
     trainers = []
-    for i in range(args.num_workers):
+    for i in range(args.num_contexts):
         network = MlpPolicy(i, 'local_%d' % i, env, args)
         old_network = MlpPolicy(i, 'old_local_%d' % i, env, args)
         networks.append(network)
         old_networks.append(old_network)
 
-    for i in range(args.num_workers):
+    for i in range(args.num_contexts):
         runner = Runner(env, networks[i], args)
         trainer = LocalTrainer(i, env, runner, networks[i], old_networks[i],
                                networks, global_network, args)

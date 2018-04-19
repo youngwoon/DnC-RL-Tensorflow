@@ -59,7 +59,7 @@ class MlpPolicy(object):
         self.obs = []
         self.pds = []
 
-        for j in range(self._config.num_workers):
+        for j in range(self._config.num_contexts):
             # obs
             _ob = {}
             for ob_name, ob_shape in self._ob_shape.items():

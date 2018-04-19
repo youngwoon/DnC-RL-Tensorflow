@@ -9,8 +9,8 @@ def argparser():
     parser = argparse.ArgumentParser("Divide-and-Conquer RL",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('-w', '--num_workers', default=4, type=int,
-                        help="Number of workers (do not change!)")
+    parser.add_argument('-c', '--num_contexts', default=4, type=int,
+                        help="Number of contexts (do not change!)")
     parser.add_argument('-e', '--env', type=str, default="JacoPick-v1",
                         help="Environment id")
     parser.add_argument('-l', '--log_dir', type=str, default="log",
@@ -23,11 +23,11 @@ def argparser():
     # training
     parser.add_argument('--is_train', type=str2bool, default=True,
                         help="Training or evaluation")
-    parser.add_argument('--T', type=int, default=1000,
+    parser.add_argument('--T', type=int, default=100,
                         help="Number of outer training loop")
     parser.add_argument('--R', type=int, default=100,
                         help="Distillation period")
-    parser.add_argument('--num_rollouts', type=int, default=10000,
+    parser.add_argument('--num_rollouts', type=int, default=20000,
                         help="Length of rollouts for a single update")
     parser.add_argument('--load_model_path', type=str, default=None,
                         help="Path of the pre-trained model to load")
@@ -42,7 +42,7 @@ def argparser():
                         help="Non-linear activation function")
     parser.add_argument('--fixed_var', type=str2bool, default=True,
                         help="Variance of stochastic policy is fixed over observation")
-    parser.add_argument('--obs_norm', type=str, default='no',
+    parser.add_argument('--obs_norm', type=str, default='predefined',
                         choices=['no', 'learn', 'predefined'],
                         help="Normalize observation")
 
@@ -57,7 +57,7 @@ def argparser():
 
     # global network
     parser.add_argument('--global_stepsize', type=float, default=1e-2)
-    parser.add_argument('--global_iters', type=int, default=100)
+    parser.add_argument('--global_iters', type=int, default=20)
     parser.add_argument('--global_max_grad_norm', type=float, default=10.0)
     parser.add_argument('--global_batch_size', type=int, default=64)
     parser.add_argument('--global_vf', type=str2bool, default=False,

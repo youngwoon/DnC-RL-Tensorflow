@@ -252,7 +252,7 @@ class LocalTrainer(object):
             other_ob_list.extend(other_pi.get_ob_list(rollouts[i]["ob"]))
 
         ob_list = pi.get_ob_list(ob)
-        args = ob_list * self._config.num_workers + \
+        args = ob_list * self._config.num_contexts + \
             other_ob_list * 2 + ob_list + [ac, atarg]
         fvpargs = [arr[::5] for arr in args]
         def fisher_vector_product(p):
